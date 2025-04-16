@@ -60,8 +60,10 @@ class BaseTask:
 
         return datasets
 
-    def train_step(self, model, samples):
+    def train_step(self, model, samples): # ------------------------------------------------------------------------------------------
+        print("[TRACE] train_step in base_task.py")
         output = model(samples)
+        print("[TRACE] train_step in base_task.py after forward pass")
         loss_dict = {}
         for k,v in output.items():
             if "loss" in k:
@@ -101,7 +103,7 @@ class BaseTask:
             dist.barrier()
 
         return results
-
+    # ------------------------------------------------------------------------------------------
     def train_epoch(
         self,
         epoch,
@@ -154,7 +156,7 @@ class BaseTask:
             cuda_enabled=cuda_enabled,
             accum_grad_iters=accum_grad_iters,
         )
-
+    # ------------------------------------------------------------------------------------------
     def _train_inner_loop(
         self,
         epoch,
@@ -257,100 +259,6 @@ class BaseTask:
             k: "{:.3f}".format(meter.global_avg)
             for k, meter in metric_logger.meters.items()
         }
-
-
-
-    # for debugging and make the training size smaller 
-    # def _train_inner_loop(
-    #     self,
-    #     epoch,
-    #     iters_per_epoch,
-    #     model,
-    #     data_loader,
-    #     optimizer,
-    #     lr_scheduler,
-    #     scaler=None,
-    #     start_iters=None,
-    #     log_freq=1,  # <<< yes, you want this at 1 for debugging
-    #     cuda_enabled=False,
-    #     accum_grad_iters=1,
-    # ):
-    #     """
-    #     Inner training loop for debug/testing pipeline.
-    #     """
-
-    #     ### ✅ LIMIT ITERATIONS FOR QUICK DEBUG
-    #     debug_max_iters = 3
-    #     log_freq = 1
-    #     iters_per_epoch = min(iters_per_epoch, debug_max_iters)
-    #     iters_per_epoch = 3
-    #     print(">>> [DEBUG] Starting training loop with max iters:", iters_per_epoch)
-
-    #     use_amp = scaler is not None
-
-    #     if not hasattr(data_loader, "__next__"):
-    #         data_loader = iter(data_loader)
-
-    #     metric_logger = MetricLogger(delimiter="  ")
-    #     metric_logger.add_meter("lr", SmoothedValue(window_size=1, fmt="{value:.6f}"))
-    #     metric_logger.add_meter("loss", SmoothedValue(window_size=1, fmt="{value:.4f}"))
-
-    #     logging.info(f"Start training epoch {epoch}, {iters_per_epoch} debug iters.")
-    #     header = f"Train: data epoch: [{epoch}]"
-
-    #     inner_epoch = epoch if start_iters is None else start_iters // iters_per_epoch
-
-    #     for i in metric_logger.log_every(range(iters_per_epoch), log_freq, header):
-    #         samples = next(data_loader)
-    #         print(f">>> [DEBUG] Sample keys: {samples.keys()}")
-
-    #         samples = prepare_sample(samples, cuda_enabled=cuda_enabled)
-
-    #         if not isinstance(samples, dict):
-    #             samples = {"is_empty": True}
-
-    #         samples.update({
-    #             "epoch": inner_epoch,
-    #             "num_iters_per_epoch": iters_per_epoch,
-    #             "iters": i,
-    #         })
-
-    #         lr_scheduler.step(cur_epoch=inner_epoch, cur_step=i)
-
-    #         with torch.cuda.amp.autocast(enabled=use_amp):
-    #             loss, loss_dict = self.train_step(model=model, samples=samples)
-    #             loss /= accum_grad_iters
-
-    #         if use_amp:
-    #             scaler.scale(loss).backward()
-    #         else:
-    #             loss.backward()
-
-    #         if (i + 1) % accum_grad_iters == 0:
-    #             if use_amp:
-    #                 scaler.step(optimizer)
-    #                 scaler.update()
-    #             else:
-    #                 optimizer.step()
-    #             optimizer.zero_grad()
-
-    #         metric_logger.update(**loss_dict)
-    #         metric_logger.update(lr=optimizer.param_groups[0]["lr"])
-
-    #     metric_logger.synchronize_between_processes()
-    #     logging.info("Averaged stats: " + str(metric_logger.global_avg()))
-
-    #     print(">>> [DEBUG] Training loop finished. Pipeline OK ✅")
-
-    #     return {
-    #         k: "{:.3f}".format(meter.global_avg)
-    #         for k, meter in metric_logger.meters.items()
-    #     }
-
-
-
-
-
 
 
     @staticmethod

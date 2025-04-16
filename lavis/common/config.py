@@ -14,7 +14,8 @@ from lavis.common.registry import registry
 
 
 class Config:
-    def __init__(self, args):
+    def __init__(self, args):  # ----------------------------------------------------------------------------------------------------------     
+        print("[TRACE] Config initialized")
         self.config = {}
 
         self.args = args
@@ -49,12 +50,12 @@ class Config:
         runner_config_validator = create_runner_config_validator()
         runner_config_validator.validate(runner_config)
 
-    def _build_opt_list(self, opts):
+    def _build_opt_list(self, opts):  # ----------------------------------------------------------------------------------------------------------     
         opts_dot_list = self._convert_to_dot_list(opts)
         return OmegaConf.from_dotlist(opts_dot_list)
 
     @staticmethod
-    def build_model_config(config, **kwargs):
+    def build_model_config(config, **kwargs):  # ----------------------------------------------------------------------------------------------------------     
         model = config.get("model", None)
         assert model is not None, "Missing model configuration file."
 
@@ -81,11 +82,11 @@ class Config:
         return model_config
 
     @staticmethod
-    def build_runner_config(config):
+    def build_runner_config(config):  # ----------------------------------------------------------------------------------------------------------     
         return {"run": config.run}
 
-    @staticmethod
-    def build_dataset_config(config):
+    @staticmethod                   
+    def build_dataset_config(config):  # ----------------------------------------------------------------------------------------------------------     
         datasets = config.get("datasets", None)
         if datasets is None:
             raise KeyError(
@@ -111,7 +112,7 @@ class Config:
 
         return dataset_config
 
-    def _convert_to_dot_list(self, opts):
+    def _convert_to_dot_list(self, opts): # ---------------------------------------------------------------------------------------------------------- 
         if opts is None:
             opts = []
 
@@ -140,7 +141,7 @@ class Config:
     def model_cfg(self):
         return self.config.model
 
-    def pretty_print(self):
+    def pretty_print(self): # ----------------------------------------------------------------------------------------------------------
         logging.info("\n=====  Running Parameters    =====")
         logging.info(self._convert_node_to_json(self.config.run))
 
@@ -223,7 +224,7 @@ class ConfigValidator:
         """
         self.arguments[args[0]] = self._Argument(*args, **kwargs)
 
-    def validate(self, config=None):
+    def validate(self, config=None): # ---------------------------------------------------------------------------------------------------------- 
         """
         Convert yaml config (dict-like) to list, required by argparse.
         """
@@ -258,7 +259,7 @@ class ConfigValidator:
         print(self.format_help())
 
 
-def create_runner_config_validator():
+def create_runner_config_validator(): # ---------------------------------------------------------------------------------------------------------- 
     validator = ConfigValidator(description="Runner configurations")
 
     validator.add_argument(

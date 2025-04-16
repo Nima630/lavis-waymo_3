@@ -51,7 +51,7 @@ def parse_args():
     return args
 
 
-def setup_seeds(config):
+def setup_seeds(config): # ----------------------------------------------------------------------------------------------------------
     seed = config.run_cfg.seed + get_rank()
 
     random.seed(seed)
@@ -62,7 +62,7 @@ def setup_seeds(config):
     cudnn.deterministic = True
 
 
-def get_runner_class(cfg):
+def get_runner_class(cfg): # ----------------------------------------------------------------------------------------------------------
     """
     Get runner class from config. Default to epoch-based runner.
     """
@@ -72,13 +72,14 @@ def get_runner_class(cfg):
 
 
 def main():
+    print("[TRACE] Starting train.py")
     # allow auto-dl completes on main process without timeout when using NCCL backend.
     # os.environ["NCCL_BLOCKING_WAIT"] = "1"
 
     # set before init_distributed_mode() to ensure the same job_id shared across all ranks.
     job_id = now()
     #  Print all registered models
-    print("✅ Registered models:", registry.mapping["model_name_mapping"].keys())
+    # print("✅ Registered models:", registry.mapping["model_name_mapping"].keys())
 
     cfg = Config(parse_args())
 
@@ -104,9 +105,9 @@ def main():
         print(">>> [DEBUG] Dataset type for 'train':", type(train_dataset))
         print(">>> [DEBUG] Train dataset length:", len(train_dataset))
 
-    if isinstance(datasets.get("train"), (tuple, list)):
-        for i, d in enumerate(datasets["train"]):
-            print(f">>> [DEBUG] train[{i}] type: {type(d)}")
+    # if isinstance(datasets.get("train"), (tuple, list)):
+    #     for i, d in enumerate(datasets["train"]):
+    #         print(f">>> [DEBUG] train[{i}] type: {type(d)}")
 
 
     model = task.build_model(cfg)

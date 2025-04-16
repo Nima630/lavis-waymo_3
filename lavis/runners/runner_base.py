@@ -45,6 +45,7 @@ class RunnerBase:
     """
 
     def __init__(self, cfg, task, model, datasets, job_id):
+        print("[TRACE] runner_base.py")
         self.config = cfg
         self.job_id = job_id
 
@@ -161,7 +162,7 @@ class RunnerBase:
 
         return self._lr_sched
 
-    @property
+    @property # ---------------------------------------------------------------------------------
     def dataloaders(self) -> dict:
         """
         A property to get and create dataloaders by split just in need.
@@ -325,7 +326,7 @@ class RunnerBase:
         return train_splits
 
     @property
-    def evaluate_only(self):
+    def evaluate_only(self): # ---------------------------------------------------------------------------------
         """
         Set to True to skip training.
         """
@@ -336,16 +337,16 @@ class RunnerBase:
         return self.config.run_cfg.get("use_dist_eval_sampler", True)
 
     @property
-    def resume_ckpt_path(self):
+    def resume_ckpt_path(self): # ---------------------------------------------------------------------------------
         return self.config.run_cfg.get("resume_ckpt_path", None)
 
     @property
-    def train_loader(self):
+    def train_loader(self): # ---------------------------------------------------------------------------------
         train_dataloader = self.dataloaders["train"]
 
         return train_dataloader
 
-    def setup_output_dir(self):
+    def setup_output_dir(self): #----------------------------------------------------------------------------------
         lib_root = Path(registry.get_path("library_root"))
 
         output_dir = lib_root / self.config.run_cfg.output_dir / self.job_id
@@ -433,7 +434,7 @@ class RunnerBase:
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logging.info("Training time {}".format(total_time_str))
 
-    def evaluate(self, cur_epoch="best", skip_reload=False):
+    def evaluate(self, cur_epoch="best", skip_reload=False): # --------------------------------------------------------------------------------- 
         test_logs = dict()
 
         if len(self.test_splits) > 0:
@@ -463,7 +464,7 @@ class RunnerBase:
         )
 
     @torch.no_grad()
-    def eval_epoch(self, split_name, cur_epoch, skip_reload=False):
+    def eval_epoch(self, split_name, cur_epoch, skip_reload=False): # ---------------------------------------------------------------------------------
         """
         Evaluate the model on a given split.
 
@@ -585,7 +586,7 @@ class RunnerBase:
         return loaders
 
     @main_process
-    def _save_checkpoint(self, cur_epoch, is_best=False):
+    def _save_checkpoint(self, cur_epoch, is_best=False): # ----------------------------------------------------------------------------------
         """
         Save the checkpoint at the current epoch.
         """
@@ -633,7 +634,7 @@ class RunnerBase:
             model.load_state_dict(checkpoint["model"], strict=False)
         return model
 
-    def _load_checkpoint(self, url_or_filename):
+    def _load_checkpoint(self, url_or_filename): #----------------------------------------------------------------------------------
         """
         Resume from a checkpoint.
         """
@@ -667,6 +668,6 @@ class RunnerBase:
             pass
 
     @main_process
-    def log_config(self):
+    def log_config(self): #----------------------------------------------------------------------------------
         with open(os.path.join(self.output_dir, "log.txt"), "a") as f:
             f.write(json.dumps(self.config.to_dict(), indent=4) + "\n")

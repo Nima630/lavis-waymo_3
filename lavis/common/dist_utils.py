@@ -14,7 +14,7 @@ import torch.distributed as dist
 import timm.models.hub as timm_hub
 
 
-def setup_for_distributed(is_master):
+def setup_for_distributed(is_master): # ----------------------------------------------------------------------------------------------------------
     """
     This function disables printing when not in master process
     """
@@ -54,7 +54,8 @@ def is_main_process():
     return get_rank() == 0
 
 
-def init_distributed_mode(args):
+def init_distributed_mode(args): # ----------------------------------------------------------------------------------------------------------
+    # print("[TRACE] init_distributed_mode called")
     if "RANK" in os.environ and "WORLD_SIZE" in os.environ:
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ["WORLD_SIZE"])

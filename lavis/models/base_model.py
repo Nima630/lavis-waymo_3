@@ -238,7 +238,7 @@ def all_gather_with_grad(tensors):
 
 
 @torch.no_grad()
-def concat_all_gather(tensor):
+def concat_all_gather(tensor): # ----------------------------------------------------------------------------
     """
     Performs all_gather operation on the provided tensors.
     *** Warning ***: torch.distributed.all_gather has no gradient.

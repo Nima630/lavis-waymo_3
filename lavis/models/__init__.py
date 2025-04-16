@@ -21,21 +21,21 @@ from lavis.models.base_model import BaseModel
 # from lavis.models.alpro_models.alpro_qa import AlproQA
 # from lavis.models.alpro_models.alpro_retrieval import AlproRetrieval
 
-from lavis.models.blip_models.blip import BlipBase
-from lavis.models.blip_models.blip_caption import BlipCaption
-from lavis.models.blip_models.blip_classification import BlipClassification
-from lavis.models.blip_models.blip_feature_extractor import BlipFeatureExtractor
-from lavis.models.blip_models.blip_image_text_matching import BlipITM
-from lavis.models.blip_models.blip_nlvr import BlipNLVR
-from lavis.models.blip_models.blip_pretrain import BlipPretrain
-from lavis.models.blip_models.blip_retrieval import BlipRetrieval
-from lavis.models.blip_models.blip_vqa import BlipVQA
+# from lavis.models.blip_models.blip import BlipBase
+# from lavis.models.blip_models.blip_caption import BlipCaption
+# from lavis.models.blip_models.blip_classification import BlipClassification
+# from lavis.models.blip_models.blip_feature_extractor import BlipFeatureExtractor
+# from lavis.models.blip_models.blip_image_text_matching import BlipITM
+# from lavis.models.blip_models.blip_nlvr import BlipNLVR
+# from lavis.models.blip_models.blip_pretrain import BlipPretrain
+# from lavis.models.blip_models.blip_retrieval import BlipRetrieval
+# from lavis.models.blip_models.blip_vqa import BlipVQA
 
 from lavis.models.blip2_models.blip2 import Blip2Base
-from lavis.models.blip2_models.blip2_opt import Blip2OPT
+# from lavis.models.blip2_models.blip2_opt import Blip2OPT
 # from lavis.models.blip2_models.blip2_t5 import Blip2T5
 from lavis.models.blip2_models.blip2_qformer import Blip2Qformer
-from lavis.models.blip2_models.blip2_image_text_matching import Blip2ITM
+# from lavis.models.blip2_models.blip2_image_text_matching import Blip2ITM
 
 # from lavis.models.blip2_models.blip2_t5_instruct import Blip2T5Instruct
 # from lavis.models.blip2_models.blip2_vicuna_instruct import Blip2VicunaInstruct
@@ -66,20 +66,20 @@ __all__ = [
     # "AlproQA",
     # "AlproRetrieval",
     "BaseModel",
-    "BlipBase",
-    "BlipFeatureExtractor",
-    "BlipCaption",
-    "BlipClassification",
+    # "BlipBase",
+    # "BlipFeatureExtractor",
+    # "BlipCaption",
+    # "BlipClassification",
     # "BlipDiffusion",
-    "BlipITM",
-    "BlipNLVR",
-    "BlipPretrain",
-    "BlipRetrieval",
-    "BlipVQA",
+    # "BlipITM",
+    # "BlipNLVR",
+    # "BlipPretrain",
+    # "BlipRetrieval",
+    # "BlipVQA",
     "Blip2Qformer",
     "Blip2Base",
-    "Blip2ITM",
-    "Blip2OPT",
+    # "Blip2ITM",
+    # "Blip2OPT",
     # "Blip2T5",
     # "Blip2T5Instruct",
     # "Blip2VicunaInstruct",

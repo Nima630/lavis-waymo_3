@@ -19,7 +19,7 @@ from lavis.tasks.image_text_pretrain import ImageTextPretrainTask
 # from lavis.tasks.text_to_image_generation import TextToImageGenerationTask
 
 
-def setup_task(cfg):
+def setup_task(cfg): # ----------------------------------------------------------------------------------------------------------
     assert "task" in cfg.run_cfg, "Task name must be provided."
 
     task_name = cfg.run_cfg.task

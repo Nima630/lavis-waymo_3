@@ -47,7 +47,7 @@ from transformers.models.bert.configuration_bert import BertConfig
 
 logger = logging.get_logger(__name__)
 
-
+# --------------------------------------------------------------------------------------
 class BertEmbeddings(nn.Module):
     """Construct the embeddings from word and position embeddings."""
 
@@ -107,7 +107,7 @@ class BertEmbeddings(nn.Module):
         embeddings = self.dropout(embeddings)
         return embeddings
 
-
+# --------------------------------------------------------------------------------------
 class BertSelfAttention(nn.Module):
     def __init__(self, config, is_cross_attention):
         super().__init__()
@@ -274,7 +274,7 @@ class BertSelfAttention(nn.Module):
         outputs = outputs + (past_key_value,)
         return outputs
 
-
+# --------------------------------------------------------------------------------------
 class BertSelfOutput(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -288,7 +288,7 @@ class BertSelfOutput(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
-
+# --------------------------------------------------------------------------------------
 class BertAttention(nn.Module):
     def __init__(self, config, is_cross_attention=False):
         super().__init__()
@@ -345,7 +345,7 @@ class BertAttention(nn.Module):
         ]  # add attentions if we output them
         return outputs
 
-
+# --------------------------------------------------------------------------------------
 class BertIntermediate(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -360,7 +360,7 @@ class BertIntermediate(nn.Module):
         hidden_states = self.intermediate_act_fn(hidden_states)
         return hidden_states
 
-
+# --------------------------------------------------------------------------------------
 class BertOutput(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -374,7 +374,7 @@ class BertOutput(nn.Module):
         hidden_states = self.LayerNorm(hidden_states + input_tensor)
         return hidden_states
 
-
+# --------------------------------------------------------------------------------------
 class BertLayer(nn.Module):
     def __init__(self, config, layer_num):
         super().__init__()
@@ -483,7 +483,7 @@ class BertLayer(nn.Module):
         layer_output = self.output_query(intermediate_output, attention_output)
         return layer_output
 
-
+# --------------------------------------------------------------------------------------
 class BertEncoder(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -588,7 +588,7 @@ class BertEncoder(nn.Module):
             cross_attentions=all_cross_attentions,
         )
 
-
+# --------------------------------------------------------------------------------------
 class BertPooler(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -603,7 +603,7 @@ class BertPooler(nn.Module):
         pooled_output = self.activation(pooled_output)
         return pooled_output
 
-
+# --------------------------------------------------------------------------------------
 class BertPredictionHeadTransform(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -640,7 +640,7 @@ class BertLMPredictionHead(nn.Module):
         hidden_states = self.decoder(hidden_states)
         return hidden_states
 
-
+# --------------------------------------------------------------------------------------
 class BertOnlyMLMHead(nn.Module):
     def __init__(self, config):
         super().__init__()
@@ -650,7 +650,7 @@ class BertOnlyMLMHead(nn.Module):
         prediction_scores = self.predictions(sequence_output)
         return prediction_scores
 
-
+# --------------------------------------------------------------------------------------
 class BertPreTrainedModel(PreTrainedModel):
     """
     An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
@@ -673,7 +673,7 @@ class BertPreTrainedModel(PreTrainedModel):
         if isinstance(module, nn.Linear) and module.bias is not None:
             module.bias.data.zero_()
 
-
+# --------------------------------------------------------------------------------------
 class BertModel(BertPreTrainedModel):
     """
     The model can behave as an encoder (with only self-attention) as well as a decoder, in which case a layer of
@@ -964,7 +964,7 @@ class BertModel(BertPreTrainedModel):
             cross_attentions=encoder_outputs.cross_attentions,
         )
 
-
+# --------------------------------------------------------------------------------------
 class BertLMHeadModel(BertPreTrainedModel):
 
     _keys_to_ignore_on_load_unexpected = [r"pooler"]
@@ -983,7 +983,7 @@ class BertLMHeadModel(BertPreTrainedModel):
 
     def set_output_embeddings(self, new_embeddings):
         self.cls.predictions.decoder = new_embeddings
-
+    # ---------------------------------------------------------------------------------------
     def forward(
         self,
         input_ids=None,
@@ -1003,6 +1003,7 @@ class BertLMHeadModel(BertPreTrainedModel):
         is_decoder=True,
         reduction="mean",
     ):
+        print("[TRACE] forward in class 'BertLMHeadModel' file models/Qformer.py")
         r"""
         encoder_hidden_states  (:obj:`torch.FloatTensor` of shape :obj:`(batch_size, sequence_length, hidden_size)`, `optional`):
             Sequence of hidden-states at the output of the last layer of the encoder. Used in the cross-attention if
