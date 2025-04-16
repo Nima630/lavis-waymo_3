@@ -14,8 +14,9 @@ import lavis.common.utils as utils
 import torch.distributed as dist
 from lavis.common.dist_utils import is_dist_avail_and_initialized, is_main_process
 from lavis.common.registry import registry
-from lavis.datasets.data_utils import extract_archive
-from lavis.processors.base_processor import BaseProcessor
+# from lavis.datasets.data_utils import extract_archive
+# from lavis.processors.base_processor import BaseProcessor
+from lavis.processors.processor import BaseProcessor, Blip2ImageTrainProcessor, BlipCaptionProcessor
 from omegaconf import OmegaConf
 from torchvision.datasets.utils import download_url
 
@@ -82,13 +83,48 @@ class BaseDatasetBuilder:
             for name, cfg in kw_proc_cfg.items():
                 self.kw_processors[name] = self._build_proc_from_cfg(cfg)
         
+    # @staticmethod
+    # def _build_proc_from_cfg(cfg):
+    #     return (
+    #         registry.get_processor_class(cfg.name).from_config(cfg)
+    #         if cfg is not None
+    #         else None
+    #     )
+
     @staticmethod
     def _build_proc_from_cfg(cfg):
-        return (
-            registry.get_processor_class(cfg.name).from_config(cfg)
-            if cfg is not None
-            else None
-        )
+        if cfg is None:
+            return None
+
+        name = cfg.name
+
+        # Map processor names directly
+        if name == "blip2_image_train":
+            return Blip2ImageTrainProcessor.from_config(cfg)
+        elif name == "blip_caption":
+            return BlipCaptionProcessor.from_config(cfg)
+        else:
+            raise ValueError(f"[ERROR] Unknown processor: {name}")
+
+
+    # Optional Cleanup: Use Dictionary Mapping
+    # processor_map = {
+    #     "blip2_image_train": Blip2ImageTrainProcessor,
+    #     "blip_caption": BlipCaptionProcessor,
+    # }
+
+    # @staticmethod
+    # def _build_proc_from_cfg(cfg):
+    #     if cfg is None:
+    #         return None
+
+    #     processor_cls = processor_map.get(cfg.name)
+    #     if processor_cls is None:
+    #         raise ValueError(f"[ERROR] Unknown processor: {cfg.name}")
+    #     return processor_cls.from_config(cfg)
+
+
+
 
     @classmethod
     def default_config_path(cls, type="default"):

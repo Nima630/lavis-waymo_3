@@ -52,7 +52,8 @@ from lavis.models.vit import VisionTransformerEncoder
 
 # from lavis.models.gpt_models.gpt_dialogue import GPTDialogue
 
-from lavis.processors.base_processor import BaseProcessor
+from lavis.processors.processor import BaseProcessor
+# from lavis.processors.base_processor import BaseProcessor
 
 
 __all__ = [
