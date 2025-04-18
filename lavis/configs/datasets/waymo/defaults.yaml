@@ -1,0 +1,61 @@
+# dataset:
+#   data_type: image
+#   build_info:
+#     annotations:
+#       train:
+#         storage: lavis_my_datasets/waymo/train/train_annotations.json
+#       val:
+#         storage: lavis_my_datasets/waymo/val/val_annotations.json
+#       test:
+#         storage: lavis_my_datasets/waymo/test/test_annotations.json
+#     image:
+#       storage: lavis_my_datasets/waymo/train/images
+#   vis_processor:
+#     train:
+#       name: blip2_image_train
+#       image_size: 224
+#     eval:
+#       name: blip2_image_train
+#       image_size: 224
+
+
+
+
+
+
+
+
+datasets:
+  waymo:
+    data_type: [camera, lidar]
+
+    camera_processor:
+      train:
+        name: blip2_image_train
+        image_size: 224
+      eval:
+        name: blip2_image_train
+        image_size: 224
+
+    lidar_processor:
+      train:
+        name: blip2_image_train
+        image_size: 224
+      eval:
+        name: blip2_image_train
+        image_size: 224
+
+    build_info:
+      annotations:
+        camera:
+          train:
+            storage: lavis/my_datasets/waymo/waymo_camera_annotations.json
+        lidar:
+          train:
+            storage: lavis/my_datasets/waymo/waymo_lidar_annotations.json
+
+      camera:
+        storage: lavis/my_datasets/waymo/training/camera_image
+
+      lidar:
+        storage: lavis/my_datasets/waymo/training/lidar

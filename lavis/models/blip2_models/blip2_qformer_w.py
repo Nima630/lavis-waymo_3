@@ -47,6 +47,133 @@ class Blip2Qformer(Blip2Base):
         self,
         vit_model="eva_clip_g",
         img_size=224,
+        drop_path_rate=0,  # not used
+        use_grad_checkpoint=False,  # not used
+        vit_precision="fp16",  # not used
+        freeze_vit=True,
+        num_query_token=32,
+        cross_attention_freq=2,
+        embed_dim=256,
+        max_txt_len=32,  # not used
+    ):
+        super().__init__()
+
+        # === RGB Encoder ===
+        self.visual_encoder, self.ln_vision = self.init_vision_encoder(
+            vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision
+        )
+        if freeze_vit:
+            for name, param in self.visual_encoder.named_parameters():
+                param.requires_grad = False
+            self.visual_encoder = self.visual_encoder.eval()
+            self.visual_encoder.train = disabled_train
+            logging.info("freeze RGB vision encoder")
+
+        # === LiDAR Encoder (identical structure) ===
+        self.lidar_encoder, self.ln_lidar = self.init_vision_encoder(
+            vit_model, img_size, drop_path_rate, use_grad_checkpoint, vit_precision
+        )
+        if freeze_vit:
+            for name, param in self.lidar_encoder.named_parameters():
+                param.requires_grad = False
+            self.lidar_encoder = self.lidar_encoder.eval()
+            self.lidar_encoder.train = disabled_train
+            logging.info("freeze LiDAR encoder")
+
+        # === Shared Q-Former for RGB and LiDAR ===
+        self.Qformer, self.query_tokens = self.init_Qformer(
+            num_query_token, self.visual_encoder.num_features, cross_attention_freq
+        )
+        self.Qformer_lidar, _ = self.init_Qformer(
+            num_query_token, self.lidar_encoder.num_features, cross_attention_freq
+        )
+
+        # === Projection layers for contrastive loss ===
+        self.vision_proj = nn.Linear(self.Qformer.config.hidden_size, embed_dim)
+        self.lidar_proj = nn.Linear(self.Qformer_lidar.config.hidden_size, embed_dim)
+
+        # === Matching head (concatenated RGB + LiDAR → binary match) ===
+        self.matching_head = nn.Sequential(
+            nn.Linear(embed_dim * 2, 256),
+            nn.ReLU(),
+            nn.Linear(256, 1)
+        )
+
+        # === Learnable temperature for contrastive loss ===
+        self.temp = nn.Parameter(0.07 * torch.ones([]))
+
+
+    def forward(self, samples):
+        image = samples["image"]
+        lidar = samples["lidar"]
+        labels = samples["label"]  # 1 = match, 0 = mismatch
+
+        bs = image.size(0)
+
+        # === Encode RGB ===
+        rgb_embeds = self.ln_vision(self.visual_encoder(image))
+        rgb_atts = torch.ones(rgb_embeds.size()[:-1], dtype=torch.long).to(image.device)
+        query_tokens = self.query_tokens.expand(bs, -1, -1)
+
+        rgb_query_output = self.Qformer.bert(
+            query_embeds=query_tokens,
+            encoder_hidden_states=rgb_embeds,
+            encoder_attention_mask=rgb_atts,
+            return_dict=True,
+        )
+        rgb_feats = F.normalize(self.vision_proj(rgb_query_output.last_hidden_state), dim=-1)
+
+        # === Encode LiDAR ===
+        lidar_embeds = self.ln_lidar(self.lidar_encoder(lidar))
+        lidar_atts = torch.ones(lidar_embeds.size()[:-1], dtype=torch.long).to(lidar.device)
+        lidar_query_output = self.Qformer_lidar.bert(
+            query_embeds=query_tokens,
+            encoder_hidden_states=lidar_embeds,
+            encoder_attention_mask=lidar_atts,
+            return_dict=True,
+        )
+        lidar_feats = F.normalize(self.lidar_proj(lidar_query_output.last_hidden_state), dim=-1)
+
+        # === Contrastive Loss ===
+        rgb_feats_all = concat_all_gather(rgb_feats)
+        lidar_feats_all = concat_all_gather(lidar_feats)
+
+        sim_r2l = torch.matmul(rgb_feats.unsqueeze(1), lidar_feats_all.unsqueeze(-1)).squeeze().max(-1)[0]
+        sim_l2r = torch.matmul(lidar_feats.unsqueeze(1), rgb_feats_all.unsqueeze(-1)).squeeze().max(-1)[0]
+
+        sim_r2l = sim_r2l / self.temp
+        sim_l2r = sim_l2r / self.temp
+
+        rank = dist.get_rank()
+        targets = torch.linspace(rank * bs, rank * bs + bs - 1, bs, dtype=int).to(image.device)
+
+        loss_contrastive = (
+            F.cross_entropy(sim_r2l, targets, label_smoothing=0.1) +
+            F.cross_entropy(sim_l2r, targets, label_smoothing=0.1)
+        ) / 2
+
+        # === Matching Head (Binary Classifier) ===
+        fused_feats = torch.cat([rgb_feats.mean(dim=1), lidar_feats.mean(dim=1)], dim=-1)
+        logits_match = self.matching_head(fused_feats).squeeze()  # Output shape: [batch]
+        loss_match = F.binary_cross_entropy_with_logits(logits_match, labels)
+
+        # === Return both losses ===
+        total_loss = loss_contrastive + loss_match  # You can weight them if needed
+
+        return BlipOutput(
+            loss=total_loss,
+            loss_itc=loss_contrastive,
+            loss_itm=loss_match,
+            loss_lm=torch.tensor(0.0).to(image.device),
+        )
+
+
+
+
+    def __init___(
+        self,
+        vit_model="eva_clip_g",
+        img_size=224,
         drop_path_rate=0,
         use_grad_checkpoint=False,
         vit_precision="fp16",
@@ -88,10 +215,12 @@ class Blip2Qformer(Blip2Base):
 
         self.max_txt_len = max_txt_len
 
-    def forward(self, samples):
+
+    def forward_(self, samples):
         print("[TRACE] forward: start")
         image = samples["image"]
-        text = samples["text_input"]
+        lidar = samples["lidar"]
+        # text = samples["text_input"]
 
         # 1. Vision encoder
         # print("[TRACE] forward: encoding image via visual_encoder")
@@ -115,30 +244,70 @@ class Blip2Qformer(Blip2Base):
         image_feats = F.normalize(
             self.vision_proj(query_output.last_hidden_state), dim=-1
         )
-        # 4. Tokenize and encode text
-        # print("[TRACE] forward: tokenizing and encoding text")
-        text_tokens = self.tokenizer(
-            text,
-            padding="max_length",
-            truncation=True,
-            max_length=self.max_txt_len,
-            return_tensors="pt",
-        ).to(image.device)
+
+
+        # 1. Vision encoder
+        # print("[TRACE] forward: encoding image via visual_encoder")
+        lidar_embeds = self.ln_vision(self.visual_encoder(lidar))
+        lidar_atts = torch.ones(lidar_embeds.size()[:-1], dtype=torch.long).to(
+            lidar.device
+        )
+
+        query_tokens_lidar = self.query_tokens.expand(lidar_embeds.shape[0], -1, -1)
+        # 2. Q-Former cross-attention with image
+        # print("[TRACE] forward: QFormer cross-attention on image features")
+        query_output_lidar = self.Qformer.bert(
+            query_embeds=query_tokens_lidar,
+            encoder_hidden_states=lidar_embeds,
+            encoder_attention_mask=lidar_atts,
+            use_cache=True,
+            return_dict=True,
+        )
+        # 3. Project image to embedding space
+        # print("[TRACE] forward: projecting image features")
+        lidar_feats = F.normalize(
+            self.vision_proj(query_output_lidar.last_hidden_state), dim=-1
+        )
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # # 4. Tokenize and encode text
+        # # print("[TRACE] forward: tokenizing and encoding text")
+        # text_tokens = self.tokenizer(
+        #     text,
+        #     padding="max_length",
+        #     truncation=True,
+        #     max_length=self.max_txt_len,
+        #     return_tensors="pt",
+        # ).to(image.device)
 
 
         # 5. Q-Former self-attention (text)
         # print("[TRACE] forward: QFormer self-attention on text features")
-        text_output = self.Qformer.bert(
-            text_tokens.input_ids,
-            attention_mask=text_tokens.attention_mask,
-            return_dict=True,
-        )
+        # text_output = self.Qformer.bert(
+        #     text_tokens.input_ids,
+        #     attention_mask=text_tokens.attention_mask,
+        #     return_dict=True,
+        # )
 
-        # 6. Project text features
-        # print("[TRACE] forward: projecting text features")
-        text_feat = F.normalize(
-            self.text_proj(text_output.last_hidden_state[:, 0, :]), dim=-1
-        )
+        # # 6. Project text features
+        # # print("[TRACE] forward: projecting text features")
+        # text_feat = F.normalize(
+        #     self.text_proj(text_output.last_hidden_state[:, 0, :]), dim=-1
+        # )
 
         ###============== Image-text Contrastive ===================###
         # 6. Contrastive loss (ITC)
@@ -146,7 +315,14 @@ class Blip2Qformer(Blip2Base):
 
         image_feats_all = concat_all_gather(
             image_feats
-        )  # [batch_size*num_gpu, num_query_tokens, embed_dim]
+        ) 
+        
+
+        lidar_feats_all = concat_all_gather(
+            lidar_feats
+        ) 
+        
+         # [batch_size*num_gpu, num_query_tokens, embed_dim]
         text_feat_all = concat_all_gather(text_feat)  # [batch_size*num_gpu, embed_dim]
 
         sim_q2t = torch.matmul(
@@ -169,9 +345,9 @@ class Blip2Qformer(Blip2Base):
 
         rank = dist.get_rank()
         bs = image.size(0)
-        targets = torch.linspace(rank * bs, rank * bs + bs - 1, bs, dtype=int).to(
-            image.device
-        )
+        # targets = torch.linspace(rank * bs, rank * bs + bs - 1, bs, dtype=int).to(
+        #     image.device
+        # )
 
         if "image_id" in samples.keys(): #coco retrieval finetuning
             # image_ids = samples["image_id"].view(-1,1)
@@ -188,18 +364,18 @@ class Blip2Qformer(Blip2Base):
 
 
             image_ids_all = concat_all_gather(image_ids)
-            pos_idx = torch.eq(image_ids, image_ids_all.t()).float()       
-            sim_targets = pos_idx / pos_idx.sum(1,keepdim=True)   
-            sim_targets = 0.9 * sim_targets + 0.1 * torch.ones_like(sim_targets) / sim_targets.size(1)
+            # pos_idx = torch.eq(image_ids, image_ids_all.t()).float()       
+            # sim_targets = pos_idx / pos_idx.sum(1,keepdim=True)   
+            # sim_targets = 0.9 * sim_targets + 0.1 * torch.ones_like(sim_targets) / sim_targets.size(1)
             
-            loss_t2i = -torch.sum(F.log_softmax(sim_t2i, dim=1)*sim_targets,dim=1).mean()
-            loss_i2t = -torch.sum(F.log_softmax(sim_i2t, dim=1)*sim_targets,dim=1).mean()     
-            loss_itc = (loss_t2i+loss_i2t)/2  
-        else:                     
-            loss_itc = (
-                F.cross_entropy(sim_i2t, targets, label_smoothing=0.1)
-                + F.cross_entropy(sim_t2i, targets, label_smoothing=0.1)
-            ) / 2
+            # loss_t2i = -torch.sum(F.log_softmax(sim_t2i, dim=1)*sim_targets,dim=1).mean()
+            # loss_i2t = -torch.sum(F.log_softmax(sim_i2t, dim=1)*sim_targets,dim=1).mean()     
+            # loss_itc = (loss_t2i+loss_i2t)/2  
+        # else:                     
+        #     loss_itc = (
+        #         F.cross_entropy(sim_i2t, targets, label_smoothing=0.1)
+        #         + F.cross_entropy(sim_t2i, targets, label_smoothing=0.1)
+        #     ) / 2
 
         ###============== Image-text Matching ===================###
         print("[TRACE][ITM] Gathering global text and image embeddings...")
@@ -280,31 +456,31 @@ class Blip2Qformer(Blip2Base):
         loss_itm = F.cross_entropy(logits, itm_labels)
 
         ##================= Image Captioning ========================##
-        decoder_input_ids = text_tokens.input_ids.clone()
-        decoder_input_ids[:, 0] = self.tokenizer.bos_token_id
-        labels = decoder_input_ids.masked_fill(
-            decoder_input_ids == self.tokenizer.pad_token_id, -100
-        )
+        # decoder_input_ids = text_tokens.input_ids.clone()
+        # decoder_input_ids[:, 0] = self.tokenizer.bos_token_id
+        # labels = decoder_input_ids.masked_fill(
+        #     decoder_input_ids == self.tokenizer.pad_token_id, -100
+        # )
 
-        query_atts = torch.ones(query_tokens.size()[:-1], dtype=torch.long).to(
-            image.device
-        )
-        attention_mask = torch.cat([query_atts, text_tokens.attention_mask], dim=1)
-        lm_output = self.Qformer(
-            decoder_input_ids,
-            attention_mask=attention_mask,
-            past_key_values=query_output.past_key_values,
-            return_dict=True,
-            labels=labels,
-        )
+        # query_atts = torch.ones(query_tokens.size()[:-1], dtype=torch.long).to(
+        #     image.device
+        # )
+        # attention_mask = torch.cat([query_atts, text_tokens.attention_mask], dim=1)
+        # lm_output = self.Qformer(
+        #     decoder_input_ids,
+        #     attention_mask=attention_mask,
+        #     past_key_values=query_output.past_key_values,
+        #     return_dict=True,
+        #     labels=labels,
+        # )
 
-        loss_lm = lm_output.loss
+        # loss_lm = lm_output.loss
 
         return BlipOutput(
-            loss=loss_itc + loss_itm + loss_lm,
-            loss_itc=loss_itc,
+            loss=loss_itm, # + loss_itc +  loss_lm,
+            loss_itc= 0, #loss_itc,
             loss_itm=loss_itm,
-            loss_lm=loss_lm,
+            loss_lm= 0, #loss_lm,
         )
 
     @classmethod

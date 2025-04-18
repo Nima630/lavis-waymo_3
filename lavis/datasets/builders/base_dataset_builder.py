@@ -14,8 +14,6 @@ import lavis.common.utils as utils
 import torch.distributed as dist
 from lavis.common.dist_utils import is_dist_avail_and_initialized, is_main_process
 from lavis.common.registry import registry
-# from lavis.datasets.data_utils import extract_archive
-# from lavis.processors.base_processor import BaseProcessor
 from lavis.processors.processor import BaseProcessor, Blip2ImageTrainProcessor, BlipCaptionProcessor
 from omegaconf import OmegaConf
 from torchvision.datasets.utils import download_url
@@ -83,14 +81,6 @@ class BaseDatasetBuilder:
             for name, cfg in kw_proc_cfg.items():
                 self.kw_processors[name] = self._build_proc_from_cfg(cfg)
         
-    # @staticmethod
-    # def _build_proc_from_cfg(cfg):
-    #     return (
-    #         registry.get_processor_class(cfg.name).from_config(cfg)
-    #         if cfg is not None
-    #         else None
-    #     )
-
     @staticmethod
     def _build_proc_from_cfg(cfg):
         if cfg is None:
@@ -105,24 +95,6 @@ class BaseDatasetBuilder:
             return BlipCaptionProcessor.from_config(cfg)
         else:
             raise ValueError(f"[ERROR] Unknown processor: {name}")
-
-
-    # Optional Cleanup: Use Dictionary Mapping
-    # processor_map = {
-    #     "blip2_image_train": Blip2ImageTrainProcessor,
-    #     "blip_caption": BlipCaptionProcessor,
-    # }
-
-    # @staticmethod
-    # def _build_proc_from_cfg(cfg):
-    #     if cfg is None:
-    #         return None
-
-    #     processor_cls = processor_map.get(cfg.name)
-    #     if processor_cls is None:
-    #         raise ValueError(f"[ERROR] Unknown processor: {cfg.name}")
-    #     return processor_cls.from_config(cfg)
-
 
 
 
@@ -270,6 +242,14 @@ class BaseDatasetBuilder:
 
         return datasets
 
+def load_dataset_config(cfg_path):
+
+    cfg = OmegaConf.load(cfg_path).datasets
+    return next(iter(cfg.values()))
+
+
+
+
 
 class MultiModalDatasetBuilder(BaseDatasetBuilder):
     """
@@ -322,22 +302,7 @@ class MultiModalDatasetBuilder(BaseDatasetBuilder):
             return utils.get_cache_path(path)
         return path
 
-    # def build(self):
-    #     self.build_processors()
-    #     build_info = self.config.build_info
-    #     datasets = {}
-        
-    #     for split, info in build_info.annotations.items():
-    #         if split not in ["train", "val", "test"]:
-    #             continue
 
-    #         is_train = split == "train"
-    #         dataset_args = self._get_dataset_args(info, is_train)
-            
-    #         dataset_cls = self.train_dataset_cls if is_train else self.eval_dataset_cls
-    #         datasets[split] = dataset_cls(**dataset_args)
-
-    #     return datasets
 
     def build(self):
         self.build_processors()
@@ -405,7 +370,3 @@ class MultiModalDatasetBuilder(BaseDatasetBuilder):
             dataset_args.setdefault(key, None)
         
         return dataset_args
-
-def load_dataset_config(cfg_path):
-    cfg = OmegaConf.load(cfg_path).datasets
-    return next(iter(cfg.values()))

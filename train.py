@@ -13,7 +13,9 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
-import lavis.tasks as tasks
+# import lavis.tasks as tasks
+from lavis.tasks.base_task import setup_task
+
 from lavis.common.config import Config
 from lavis.common.dist_utils import get_rank, init_distributed_mode
 from lavis.common.logger import setup_logger
@@ -29,7 +31,7 @@ from lavis.datasets.builders import *
 from lavis.models import *
 from lavis.processors import *
 from lavis.runners import *
-from lavis.tasks import *
+# from lavis.tasks import *
 
 
 def parse_args():
@@ -94,7 +96,8 @@ def main():
 
     cfg.pretty_print()
 
-    task = tasks.setup_task(cfg)
+    # task = tasks.setup_task(cfg)
+    task = setup_task(cfg)
     datasets = task.build_datasets(cfg)
     # print(">>> [DEBUG] Dataset type for 'train':", type(datasets.get("train")))
     # print(">>> [DEBUG] Train dataset length:", len(datasets.get("train")))
