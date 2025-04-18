@@ -15,6 +15,7 @@ from lavis.datasets.data_utils import prepare_sample
 
 
 class BaseTask:
+    
     def __init__(self, **kwargs):
         super().__init__()
         self.inst_id_key = "instance_id"
@@ -185,7 +186,7 @@ def setup_task(cfg):
     # task_name = cfg.run_cfg.task
     # task = registry.get_task_class(task_name).setup_task(cfg=cfg)
     task = BaseTask()
-    assert task is not None, f"Task {task_name} not properly registered."
+    # assert task is not None, f"Task {task_name} not properly registered."
     return task
 
 

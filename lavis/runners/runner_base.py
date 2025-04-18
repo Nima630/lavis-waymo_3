@@ -92,6 +92,10 @@ class RunnerBase:
                     self._wrapped_model = DDP(
                         self._model, device_ids=[self.config.run_cfg.gpu]
                     )
+                    
+                    # local_rank = int(os.environ.get("LOCAL_RANK", 0))
+                    # print("[DEBUG] Model object:", self._model)
+                    # print("[DEBUG] device_ids =", [local_rank])
             else:
                 self._wrapped_model = self._model
 

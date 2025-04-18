@@ -51,24 +51,6 @@ class BaseDataset(Dataset):
     def __len__(self):
         return len(self.annotation)
 
-    # def __getitem__(self, index):
-    #     ann = self.annotation[index]
-    #     try:
-    #         image_path = os.path.join(self.vis_root, ann["image"])
-    #         image = self.vis_processor(image_path)
-
-    #         text = self.text_processor(ann["caption"]) if self.text_processor else ""
-
-    #         return {
-    #             "image": image,
-    #             "text": text,
-    #             "instance_id": ann["instance_id"],
-    #         }
-
-    #     except Exception as e:
-    #         print(f"[Warning] Skipping broken sample at index {index}: {e}")
-    #         return None
-    
     def __getitem__(self, index):
         ann = self.annotation[index]
 
@@ -155,26 +137,3 @@ class ConcatDataset(ConcatDataset):
 
         return self.datasets[0].collater(samples_shared_keys)
 
-
-        # def collater(self, samples):
-        #     # TODO For now only supports datasets with same underlying collater implementations
-
-        #     all_keys = set()
-        #     # for s in samples:
-        #     #     all_keys.update(s)
-
-        #     for s in samples:
-        #         if s is None:
-        #             continue  # Skip broken samples
-        #         all_keys.update(s)
-
-
-        #     shared_keys = all_keys
-        #     for s in samples:
-        #         shared_keys = shared_keys & set(s.keys())
-
-        #     samples_shared_keys = []
-        #     for s in samples:
-        #         samples_shared_keys.append({k: s[k] for k in s.keys() if k in shared_keys})
-
-        #     return self.datasets[0].collater(samples_shared_keys)

@@ -31,6 +31,7 @@ class MultiModalDatasetBuilder:
         self.processors = {}
 
     def build_datasets(self):
+        print("\n>>> [DEBUG] Dataset builder config:", self.config)
         if is_main_process():
             self._download_data()
         if is_dist_avail_and_initialized():

@@ -12,7 +12,7 @@ import torch.nn as nn
 from torch.cuda.amp import autocast as autocast
 from torch.nn import functional as F
 
-from lavis.common.registry import registry
+# from lavis.common.registry import registry
 from lavis.models.base_model import all_gather_with_grad, concat_all_gather
 from lavis.models.blip2_models.blip2 import (
     Blip2Base,
@@ -22,8 +22,8 @@ from lavis.models.blip2_models.blip2 import (
 from lavis.models.blip_models.blip_outputs import BlipOutput, BlipOutputFeatures
 
 
-@registry.register_model("blip2")
-@registry.register_model("blip2_feature_extractor")
+# @registry.register_model("blip2")
+# @registry.register_model("blip2_feature_extractor")
 class Blip2Qformer(Blip2Base):
     """
     BLIP2 first-stage model with Q-former and ViT.
@@ -168,6 +168,43 @@ class Blip2Qformer(Blip2Base):
         )
 
 
+
+    @classmethod
+    def from_config(cls, cfg): # ----------------------------------------------------------------------------
+        vit_model = cfg.get("vit_model", "eva_clip_g")
+        img_size = cfg.get("image_size")
+        num_query_token = cfg.get("num_query_token")
+        cross_attention_freq = cfg.get("cross_attention_freq", 2)
+
+        drop_path_rate = cfg.get("drop_path_rate", 0)
+        use_grad_checkpoint = cfg.get("use_grad_checkpoint", False)
+        vit_precision = cfg.get("vit_precision", "fp16")
+        freeze_vit = cfg.get("freeze_vit", True)
+
+        max_txt_len = cfg.get("max_txt_len", 32)
+
+        model = cls(
+            vit_model=vit_model,
+            img_size=img_size,
+            drop_path_rate=drop_path_rate,
+            use_grad_checkpoint=use_grad_checkpoint,
+            vit_precision=vit_precision,
+            freeze_vit=freeze_vit,
+            num_query_token=num_query_token,
+            cross_attention_freq=cross_attention_freq,
+            max_txt_len=max_txt_len,
+        )
+        model.load_checkpoint_from_config(cfg)
+
+        return model
+
+    def compute_sim_matrix(self, data_loader, task_cfg):
+        """
+        Compute similarity i2t, t2i matrix for the given data loader.
+        """
+        k_test = task_cfg.k_test
+
+        return compute_sim_matrix(model=self, data_loader=data_loader, k_test=k_test)
 
 
     def __init___(
@@ -482,40 +519,3 @@ class Blip2Qformer(Blip2Base):
             loss_itm=loss_itm,
             loss_lm= 0, #loss_lm,
         )
-
-    @classmethod
-    def from_config(cls, cfg): # ----------------------------------------------------------------------------
-        vit_model = cfg.get("vit_model", "eva_clip_g")
-        img_size = cfg.get("image_size")
-        num_query_token = cfg.get("num_query_token")
-        cross_attention_freq = cfg.get("cross_attention_freq", 2)
-
-        drop_path_rate = cfg.get("drop_path_rate", 0)
-        use_grad_checkpoint = cfg.get("use_grad_checkpoint", False)
-        vit_precision = cfg.get("vit_precision", "fp16")
-        freeze_vit = cfg.get("freeze_vit", True)
-
-        max_txt_len = cfg.get("max_txt_len", 32)
-
-        model = cls(
-            vit_model=vit_model,
-            img_size=img_size,
-            drop_path_rate=drop_path_rate,
-            use_grad_checkpoint=use_grad_checkpoint,
-            vit_precision=vit_precision,
-            freeze_vit=freeze_vit,
-            num_query_token=num_query_token,
-            cross_attention_freq=cross_attention_freq,
-            max_txt_len=max_txt_len,
-        )
-        model.load_checkpoint_from_config(cfg)
-
-        return model
-
-    def compute_sim_matrix(self, data_loader, task_cfg):
-        """
-        Compute similarity i2t, t2i matrix for the given data loader.
-        """
-        k_test = task_cfg.k_test
-
-        return compute_sim_matrix(model=self, data_loader=data_loader, k_test=k_test)
