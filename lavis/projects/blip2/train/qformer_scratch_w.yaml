@@ -32,9 +32,9 @@ datasets:
           train:
             storage: lavis/my_datasets/waymo/waymo_lidar_annotations.json
       camera:
-        storage: lavis/my_datasets/waymo/train/camera_image
+        storage: lavis/my_datasets/waymo/train/tiny_camera_image
       lidar:
-        storage: lavis/my_datasets/waymo/train/lidar
+        storage: lavis/my_datasets/waymo/train/tiny_lidar
 
 run:
   task: waymo_captioning  # <- custom task if you register it

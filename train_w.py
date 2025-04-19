@@ -75,6 +75,9 @@ def main():
 
     model = Blip2Qformer.from_config(cfg.model_cfg)
     runner = RunnerBase(cfg=cfg, job_id=job_id, task=task, model=model, datasets=datasets)
+    if len(train_dataset) == 0:
+        raise RuntimeError("Train dataset is empty. Check your input paths or data content.")
+
     runner.train()
 
 # def main():

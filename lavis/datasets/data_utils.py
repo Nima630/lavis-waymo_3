@@ -76,6 +76,8 @@ def move_to_cuda(sample):
 
 
 def prepare_sample(samples, cuda_enabled=True):
+    if samples is None or samples.get("is_empty", False):
+        return None  # Skip this sample entirely
     if cuda_enabled:
         samples = move_to_cuda(samples)
 

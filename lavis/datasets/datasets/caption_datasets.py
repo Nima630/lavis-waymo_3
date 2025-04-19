@@ -33,6 +33,9 @@ class CaptionDataset(BaseDataset, __DisplMixin):
         """
         super().__init__(vis_processor, text_processor, vis_root, ann_paths)
         # print(">>> [DEBUG] CaptionDataset is being imported and used.")
+
+        if ann_paths is not None and len(ann_paths) > 0:
+            print("[DEBUG] CaptionDataset received annotation file:", ann_paths[0])
         self.img_ids = {}
         n = 0
         for ann in self.annotation:

@@ -15,33 +15,71 @@ from torch.utils.data.dataloader import default_collate
 from PIL import Image
 
 class BaseDataset(Dataset):
+    
+    # def __init__(
+    #     self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=[]
+    # ):
+    #     """
+    #     vis_root (string): Root directory of images (e.g. coco/images/)
+    #     ann_root (string): directory to store the annotation file
+    #     """
+    #     # print(">>> [DEBUG] BaseDataset __init__ called")
+    #     self.vis_root = vis_root
+    #     self.annotation = []
+    #     for ann_path in ann_paths:
+    #         if any(ext in ann_path for ext in ['csv', 'tsv']):
+    #             df = pd.read_csv(ann_path)
+    #             self.annotation.extend(df.to_dict(orient="records"))
+                
+    #         elif 'jsonl' in ann_path:
+    #             with open(ann_path, "r") as f:
+    #                 self.annotation.extend([json.loads(line) for line in f])
+
+    #         else:
+    #             with open(ann_path, "r") as f:
+    #                 loaded = json.load(f)
+    #                 if isinstance(loaded, list):
+    #                     self.annotation.extend(loaded)
+    #                 elif isinstance(loaded, dict):
+    #                    self.annotation.extend([{"sample_id": k, **v} if isinstance(v, dict) else {"sample_id": k, "data": v} for k, v in loaded.items()])
+
+
+    #     self.vis_processor = vis_processor
+    #     self.text_processor = text_processor
+
+    #     self._add_instance_ids()
+
+
     def __init__(
-        self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=[]
+        self, vis_processor=None, text_processor=None, vis_root=None, ann_paths=None
     ):
         """
         vis_root (string): Root directory of images (e.g. coco/images/)
-        ann_root (string): directory to store the annotation file
+        ann_paths (list or None): List of annotation file paths or None if not used.
         """
-        # print(">>> [DEBUG] BaseDataset __init__ called")
         self.vis_root = vis_root
         self.annotation = []
-        for ann_path in ann_paths:
-            if any(ext in ann_path for ext in ['csv', 'tsv']):
-                df = pd.read_csv(ann_path)
-                self.annotation.extend(df.to_dict(orient="records"))
-                
-            elif 'jsonl' in ann_path:
-                with open(ann_path, "r") as f:
-                    self.annotation.extend([json.loads(line) for line in f])
 
-            else:
-                with open(ann_path, "r") as f:
-                    loaded = json.load(f)
-                    if isinstance(loaded, list):
-                        self.annotation.extend(loaded)
-                    elif isinstance(loaded, dict):
-                       self.annotation.extend([{"sample_id": k, **v} if isinstance(v, dict) else {"sample_id": k, "data": v} for k, v in loaded.items()])
+        if ann_paths is not None:
+            for ann_path in ann_paths:
+                if any(ext in ann_path for ext in ['csv', 'tsv']):
+                    df = pd.read_csv(ann_path)
+                    self.annotation.extend(df.to_dict(orient="records"))
 
+                elif 'jsonl' in ann_path:
+                    with open(ann_path, "r") as f:
+                        self.annotation.extend([json.loads(line) for line in f])
+
+                else:  # assume JSON
+                    with open(ann_path, "r") as f:
+                        loaded = json.load(f)
+                        if isinstance(loaded, list):
+                            self.annotation.extend(loaded)
+                        elif isinstance(loaded, dict):
+                            self.annotation.extend([
+                                {"sample_id": k, **v} if isinstance(v, dict) else {"sample_id": k, "data": v}
+                                for k, v in loaded.items()
+                            ])
 
         self.vis_processor = vis_processor
         self.text_processor = text_processor

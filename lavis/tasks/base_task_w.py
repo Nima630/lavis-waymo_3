@@ -135,6 +135,9 @@ class BaseTask:
 
             samples = next(data_loader)
             samples = prepare_sample(samples, cuda_enabled=cuda_enabled)
+            if samples is None or samples.get("is_empty", False):
+                continue
+            
             if not isinstance(samples, dict):
                 samples = {"is_empty": True}
 
