@@ -32,7 +32,7 @@ from lavis.models import *
 from lavis.processors import *
 from lavis.runners import *
 # from lavis.tasks import *
-
+from torch.utils.data import DataLoader
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Training")
@@ -112,6 +112,17 @@ def main():
     #     for i, d in enumerate(datasets["train"]):
     #         print(f">>> [DEBUG] train[{i}] type: {type(d)}")
 
+
+    # Create a DataLoader to inspect samples
+    dataloader = DataLoader(train_dataset, batch_size=1, shuffle=False)
+
+    print("\n>>> [DEBUG] Sample inspection:")
+    for idx, sample in enumerate(dataloader):
+        print(f"Sample {idx}:")
+        for key in sample:
+            print(f"  {key}: {type(sample[key])}, shape: {sample[key].shape if hasattr(sample[key], 'shape') else sample[key]}")
+        if idx >= 2:
+            break
 
     model = task.build_model(cfg)
 

@@ -113,6 +113,73 @@ class PrefetchLoader(object):
         return method
 
 
+
+class PrefetchLoader_(object):
+    """
+    Modified from https://github.com/ChenRocks/UNITER.
+
+    overlap compute and cuda data transfer
+    (copied and then modified from nvidia apex)
+    """
+
+    def __init__(self, loader):
+        self.loader = loader
+        self.stream = torch.cuda.Stream()
+
+    def __iter__(self):
+        loader_it = iter(self.loader)
+        self.preload(loader_it)
+        batch = self.next(loader_it)
+        while batch is not None:
+            is_tuple = isinstance(batch, tuple)
+            if is_tuple:
+                task, batch = batch
+
+            print(f"[PrefetchLoader DEBUG] Yielding batch keys: {list(batch.keys()) if isinstance(batch, dict) else type(batch)}")
+            
+            if is_tuple:
+                yield task, batch
+            else:
+                yield batch
+            batch = self.next(loader_it)
+
+    def __len__(self):
+        return len(self.loader)
+
+    def preload(self, it):
+        try:
+            self.batch = next(it)
+            print(f"[PrefetchLoader DEBUG] Preloaded batch keys: {list(self.batch.keys()) if isinstance(self.batch, dict) else type(self.batch)}")
+        except StopIteration:
+            self.batch = None
+            print("[PrefetchLoader DEBUG] No more data to preload (StopIteration).")
+            return
+
+        with torch.cuda.stream(self.stream):
+            self.batch = move_to_cuda(self.batch)
+
+    def next(self, it):
+        torch.cuda.current_stream().wait_stream(self.stream)
+        batch = self.batch
+
+        # Properly check for dict with no content
+        if isinstance(batch, dict) and not batch:
+            print("[PrefetchLoader WARNING] Empty dict batch detected! Skipping.")
+            batch = None
+        elif batch is not None:
+            record_cuda_stream(batch)
+
+        self.preload(it)
+        return batch
+
+    def __next__(self, it):
+        return self.next(it)
+
+    def __getattr__(self, name):
+        return getattr(self.loader, name)
+
+
+
 def record_cuda_stream(batch):
     if isinstance(batch, torch.Tensor):
         batch.record_stream(torch.cuda.current_stream())

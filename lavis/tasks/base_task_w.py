@@ -31,7 +31,7 @@ class BaseTask:
     def build_datasets(self, cfg):
         datasets = dict()
         datasets_config = cfg.datasets_cfg
-        print("\n>>> [DEBUG] datasets_cfg-------------------------:", cfg.datasets_cfg)
+        # print("\n>>> [DEBUG] datasets_cfg-------------------------:", cfg.datasets_cfg)
         assert len(datasets_config) > 0, "At least one dataset has to be specified."
 
         for name in datasets_config:
@@ -45,6 +45,9 @@ class BaseTask:
 
     def train_step(self, model, samples):
         print("[TRACE] train_step in base_task.py")
+        print("  sample keys:", samples.keys())
+        print("  image shape:", samples.get("image", None).shape if "image" in samples else "missing")
+        print("  lidar shape:", samples.get("lidar", None).shape if "lidar" in samples else "missing")
         output = model(samples)
         print("[TRACE] train_step in base_task.py after forward pass")
         loss_dict = {k: v for k, v in output.items() if "loss" in k}
@@ -128,12 +131,15 @@ class BaseTask:
         inner_epoch = epoch if start_iters is None else start_iters // iters_per_epoch
         if start_iters is not None:
             header += f"; inner epoch [{inner_epoch}]"
-
+        # iters_per_epoch = 5 #---------------------- remove this later ----------------------
+        # print(iters_per_epoch, "---------aaaaa--------------------------------------------------------------------------------")
+        # print(log_freq, "--------------aaaaa---------------------------------------------------------------------------")
         for i in metric_logger.log_every(range(iters_per_epoch), log_freq, header):
             if i >= iters_per_epoch:
                 break
 
             samples = next(data_loader)
+            # print("  sample keys: ++++++++++++++++++++++++++++++++++++", samples)
             samples = prepare_sample(samples, cuda_enabled=cuda_enabled)
             if samples is None or samples.get("is_empty", False):
                 continue

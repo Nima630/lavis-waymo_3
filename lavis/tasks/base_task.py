@@ -46,6 +46,9 @@ class BaseTask:
 
     def train_step(self, model, samples):
         print("[TRACE] train_step in base_task.py")
+        # print("  sample keys:", samples.keys())
+        # print("  image shape:", samples.get("image", None).shape if "image" in samples else "missing")
+        # print("  lidar shape:", samples.get("lidar", None).shape if "lidar" in samples else "missing")
         output = model(samples)
         print("[TRACE] train_step in base_task.py after forward pass")
         loss_dict = {k: v for k, v in output.items() if "loss" in k}
@@ -135,6 +138,9 @@ class BaseTask:
                 break
 
             samples = next(data_loader)
+            print("  sample keys: ++++++++++++++++++++++++++++++++++++", samples)
+            # print("  image shape:", samples.get("image", None).shape if "image" in samples else "missing")
+            # print("  lidar shape:", samples.get("lidar", None).shape if "lidar" in samples else "missing")
             samples = prepare_sample(samples, cuda_enabled=cuda_enabled)
             if not isinstance(samples, dict):
                 samples = {"is_empty": True}
@@ -152,6 +158,7 @@ class BaseTask:
             with torch.cuda.amp.autocast(enabled=use_amp):
                 loss, loss_dict = self.train_step(model=model, samples=samples)
                 loss /= accum_grad_iters
+                # loss = loss / accum_grad_iters
 
             if use_amp:
                 scaler.scale(loss).backward()

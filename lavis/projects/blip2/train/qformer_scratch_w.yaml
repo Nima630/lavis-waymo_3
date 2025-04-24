@@ -9,7 +9,7 @@ model:
   image_size: 224
   max_txt_len: 32
   use_grad_checkpoint: True
-  num_query_token: 32
+  num_query_token: 8
 
 
 # Custom Waymo dataset config
@@ -43,12 +43,12 @@ run:
   min_lr: 1e-5
   warmup_lr: 1e-6
   weight_decay: 0.05
-  max_epoch: 2
-  save_every_n_steps: 2
-  batch_size_train: 1 #2
+  max_epoch: 1 #2
+  save_every_n_steps: 10 #1 #2
+  batch_size_train: 2
   batch_size_eval: 16 #64
   num_workers: 0 #4
-  warmup_steps: 5
+  warmup_steps: 0 #5
   seed: 42
   output_dir: "output/BLIP2/qformer_scratch_waymo"
   amp: true
@@ -56,6 +56,6 @@ run:
   evaluate: false
   train_splits: ["train"]
   device: "cuda"
-  world_size: 2
+  world_size: 1 # 2 number of gpu used 
   dist_url: "env://"
-  distributed: true
+  distributed: false # true

@@ -67,18 +67,40 @@ class CaptionDataset(BaseDataset, __DisplMixin):
             "image_id": ann["image_id"]
         }
 
-    def collater(self, samples):
-            # print("+++ DEBUG COLLATER IS CALLED +++")  # This should now print!
-            samples = [s for s in samples if s is not None]
-            if not samples:
-                return {}
-            collated = {}
-            keys = samples[0].keys()
-            for k in keys:
-                values = [s[k] for s in samples if k in s]
-                collated[k] = torch.stack(values) if isinstance(values[0], torch.Tensor) else values
-            return collated
+    # def collater(self, samples):
+    #         # print("+++ DEBUG COLLATER IS CALLED +++")  # This should now print!
+    #         samples = [s for s in samples if s is not None]
+    #         if not samples:
+    #             return {}
+    #         collated = {}
+    #         keys = samples[0].keys()
+    #         for k in keys:
+    #             values = [s[k] for s in samples if k in s]
+    #             collated[k] = torch.stack(values) if isinstance(values[0], torch.Tensor) else values
+    #         return collated
 
+    def collater(self, samples):
+        samples = [s for s in samples if s is not None]
+
+        if not samples:
+            print("[DEBUG] CaptionDataset collater received empty sample list.")
+            return {"is_empty": True}
+
+        collated = {}
+        keys = samples[0].keys()
+        
+        for k in keys:
+            try:
+                values = [s[k] for s in samples if k in s]
+                if isinstance(values[0], torch.Tensor):
+                    collated[k] = torch.stack(values)
+                else:
+                    collated[k] = values
+            except Exception as e:
+                print(f"[ERROR] Collating key '{k}' failed: {e}")
+                collated[k] = values  # fallback to unstacked values
+
+        return collated
 
 
 class CaptionEvalDataset(BaseDataset, __DisplMixin):

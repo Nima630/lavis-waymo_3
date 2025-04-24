@@ -90,6 +90,7 @@ class Blip2Qformer(Blip2Base):
 
     def forward(self, samples):
         print("[TRACE] forward: start")
+        print("[MODEL DEBUG] Input sample keys:", samples.keys())
         image = samples["image"]
         text = samples["text_input"]
 

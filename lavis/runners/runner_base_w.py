@@ -29,14 +29,15 @@ from lavis.datasets.datasets.dataloader_utils import (
     IterLoader,
     MultiIterLoader,
     PrefetchLoader,
+    PrefetchLoader_,
 )
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 from torch.utils.data.dataset import ChainDataset
 
 
-@registry.register_runner("runner_base")
-class RunnerBase:
+# @registry.register_runner("runner_base")
+class RunnerBaseW:
     """
     A runner class to train and evaluate a model given a task and datasets.
 
@@ -196,11 +197,13 @@ class RunnerBase:
                 "dataset_ratios not specified, datasets will be concatenated (map-style datasets) or chained (webdataset.DataPipeline)."
             )
 
-            datasets = reorg_datasets_by_split(self.datasets)
-            self.datasets = concat_datasets(datasets)
-
+            # datasets = reorg_datasets_by_split(self.datasets)
+            # self.datasets = concat_datasets(datasets)
+            datasets = self.datasets
+            print("[DEBUG] Datasets being passed into create_loaders:", datasets)
             # print dataset statistics after concatenation/chaining
             for split_name in self.datasets:
+                print("split_name ==========================", split_name)
                 if isinstance(self.datasets[split_name], tuple) or isinstance(
                     self.datasets[split_name], list
                 ):
@@ -235,7 +238,9 @@ class RunnerBase:
             # create dataloaders
             split_names = sorted(self.datasets.keys())
 
-            datasets = [self.datasets[split] for split in split_names]
+            # datasets = [self.datasets[split] for split in split_names]
+            datasets = [datasets[split] for split in split_names]
+
             is_trains = [split in self.train_splits for split in split_names]
 
             batch_sizes = [
@@ -247,10 +252,22 @@ class RunnerBase:
 
             collate_fns = []
             for dataset in datasets:
-                if isinstance(dataset, tuple) or isinstance(dataset, list):
+                if isinstance(dataset, (tuple, list)):
+                    print(f"[DEBUG] Dataset is a tuple/list with {len(dataset)} items")
+                    for d in dataset:
+                        print(f"    - Sub-dataset type: {type(d)}, length: {len(d) if hasattr(d, '__len__') else 'unknown'}")
                     collate_fns.append([getattr(d, "collater", None) for d in dataset])
                 else:
+                    print(f"[DEBUG] Dataset type: {type(dataset)}, length: {len(dataset) if hasattr(dataset, '__len__') else 'unknown'}")
                     collate_fns.append(getattr(dataset, "collater", None))
+
+
+            # collate_fns = []
+            # for dataset in datasets:
+            #     if isinstance(dataset, tuple) or isinstance(dataset, list):
+            #         collate_fns.append([getattr(d, "collater", None) for d in dataset])
+            #     else:
+            #         collate_fns.append(getattr(dataset, "collater", None))
 
             dataloaders = self.create_loaders(
                 datasets=datasets,
@@ -263,33 +280,31 @@ class RunnerBase:
 
             self._dataloaders = {k: v for k, v in zip(split_names, dataloaders)}
             # print("[DEBUG] Created dataloaders:", self._dataloaders.keys())
+            print("[DEBUG] Created dataloaders:")
 
-            # print("[DEBUG] Created dataloaders:")
+            for split_name, loader in self._dataloaders.items():
+                print(f"  • Split: '{split_name}'")
+                print(f"    - Loader type: {type(loader)}")
 
-            # for split_name, loader in self._dataloaders.items():
-            #     print(f"  • Split: '{split_name}'")
-            #     print(f"    - Loader type: {type(loader)}")
+                # If loader is IterLoader, try to access the underlying dataloader
+                inner_loader = getattr(loader, 'loader', None)
 
-            #     # If loader is IterLoader, try to access the underlying dataloader
-            #     inner_loader = getattr(loader, 'loader', None)
+                if inner_loader is not None:
+                    print(f"    - Underlying dataset type: {type(inner_loader.dataset)}")
+                    try:
+                        print(f"    - Dataset length: {len(inner_loader.dataset)}")
+                    except:
+                        print(f"    - Dataset length: unknown")
 
-            #     if inner_loader is not None:
-            #         print(f"    - Underlying dataset type: {type(inner_loader.dataset)}")
-            #         try:
-            #             print(f"    - Dataset length: {len(inner_loader.dataset)}")
-            #         except:
-            #             print(f"    - Dataset length: unknown")
-
-            #         # Optional: peek one sample batch (be cautious if dataset is huge)
-            #         try:
-            #             sample_batch = next(iter(inner_loader))
-            #             sample_keys = sample_batch.keys() if isinstance(sample_batch, dict) else type(sample_batch)
-            #             print(f"    - Sample batch keys: {sample_keys}")
-            #         except Exception as e:
-            #             print(f"    - Could not preview batch: {e}")
-            #     else:
-            #         print("    - Could not access inner loader or dataset.")
-
+                    # Optional: peek one sample batch (be cautious if dataset is huge)
+                    try:
+                        sample_batch = next(iter(inner_loader))
+                        sample_keys = sample_batch.keys() if isinstance(sample_batch, dict) else type(sample_batch)
+                        print(f"    - Sample batch keys: {sample_keys}")
+                    except Exception as e:
+                        print(f"    - Could not preview batch: {e}")
+                else:
+                    print("    - Could not access inner loader or dataset.")
 
 
 
@@ -454,7 +469,10 @@ class RunnerBase:
             if self.save_freq>0 and cur_epoch%self.save_freq == 0:
                 self._save_checkpoint(cur_epoch, is_best=False)
 
-            dist.barrier()
+            # dist.barrier()
+
+            if dist.is_available() and dist.is_initialized():
+                dist.barrier()
 
         # save last checkpoint
         if self.save_last and not self.evaluate_only:
@@ -547,12 +565,15 @@ class RunnerBase:
     #     collate_fns,
     #     dataset_ratios=None,
     # ):
+        
+
     #     """
     #     Create dataloaders for training and validation.
     #     """
 
     #     def _create_loader(dataset, num_workers, bsz, is_train, collate_fn):
     #         print(f"[LOADER DEBUG] _create_loader received dataset of type {type(dataset)} with length {len(dataset) if hasattr(dataset, '__len__') else 'unknown'}")
+
     #         # create a single dataloader for each split
     #         if isinstance(dataset, ChainDataset) or isinstance(
     #             dataset, wds.DataPipeline
@@ -600,12 +621,14 @@ class RunnerBase:
     #                 loader = IterLoader(loader, use_distributed=self.use_distributed)
 
     #         return loader
-
+    #     # create dataloaders
     #     loaders = []
 
     #     for dataset, bsz, is_train, collate_fn in zip(
     #         datasets, batch_sizes, is_trains, collate_fns
     #     ):
+            
+    #         print(f"[DEBUG] Creating loader for dataset: {dataset}, type: {type(dataset)}")
     #         if isinstance(dataset, list) or isinstance(dataset, tuple):
     #             loader = MultiIterLoader(
     #                 loaders=[
@@ -787,7 +810,7 @@ class RunnerBase:
                     drop_last=True if is_train else False,
                 )
                 print(f"[LOADER DEBUG] DataLoader created: {loader}")
-                loader = PrefetchLoader(loader)
+                loader = PrefetchLoader_(loader)
                 print(f"[LOADER DEBUG] Wrapped in PrefetchLoader: {type(loader)}")
 
                 if is_train:
