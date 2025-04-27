@@ -200,10 +200,9 @@ class RunnerBaseW:
             # datasets = reorg_datasets_by_split(self.datasets)
             # self.datasets = concat_datasets(datasets)
             datasets = self.datasets
-            print("[DEBUG] Datasets being passed into create_loaders:", datasets)
+            # print("[DEBUG] Datasets being passed into create_loaders:", datasets)
             # print dataset statistics after concatenation/chaining
             for split_name in self.datasets:
-                print("split_name ==========================", split_name)
                 if isinstance(self.datasets[split_name], tuple) or isinstance(
                     self.datasets[split_name], list
                 ):
@@ -280,7 +279,7 @@ class RunnerBaseW:
 
             self._dataloaders = {k: v for k, v in zip(split_names, dataloaders)}
             # print("[DEBUG] Created dataloaders:", self._dataloaders.keys())
-            print("[DEBUG] Created dataloaders:")
+            # print("[DEBUG] Created dataloaders:")
 
             for split_name, loader in self._dataloaders.items():
                 print(f"  • Split: '{split_name}'")
@@ -292,10 +291,14 @@ class RunnerBaseW:
                 if inner_loader is not None:
                     print(f"    - Underlying dataset type: {type(inner_loader.dataset)}")
                     try:
-                        print(f"    - Dataset length: {len(inner_loader.dataset)}")
-                    except:
-                        print(f"    - Dataset length: unknown")
-
+                        dataset_length = len(inner_loader.dataset)
+                        print(f"    - Dataset length: {dataset_length}")
+                        if dataset_length == 0:
+                            raise RuntimeError(f"Error: Dataset for split '{split_name}' is empty! Please check your data paths or preprocessing.")
+                    # except:
+                    #     print(f"    - Dataset length: unknown")
+                    except Exception as e:
+                        print(f"    - Dataset length: unknown ({e})")
                     # Optional: peek one sample batch (be cautious if dataset is huge)
                     try:
                         sample_batch = next(iter(inner_loader))
@@ -392,7 +395,7 @@ class RunnerBaseW:
     @property
     def train_loader(self): # ---------------------------------------------------------------------------------
         train_dataloader = self.dataloaders["train"]
-        print(">>> [DEBUG] self.dataloaders['train']:", self.dataloaders["train"])
+        # print(">>> [DEBUG] self.dataloaders['train']:", self.dataloaders["train"])
         return train_dataloader
 
     def setup_output_dir(self): #----------------------------------------------------------------------------------
@@ -412,7 +415,8 @@ class RunnerBaseW:
 
     def train(self):
         start_time = time.time()
-        best_agg_metric = 0
+        # best_agg_metric = 0
+        best_val_loss_so_far = float("inf")
         best_epoch = 0
 
         self.log_config()
@@ -442,20 +446,36 @@ class RunnerBaseW:
                     val_log = self.eval_epoch(
                         split_name=split_name, cur_epoch=cur_epoch
                     )
+
+                    # if val_log is not None:
+                    #     if is_main_process():
+                    #         assert (
+                    #             "agg_metrics" in val_log
+                    #         ), "No agg_metrics found in validation log."
+                    #         agg_metrics = val_log["agg_metrics"]
+                    #         if agg_metrics > best_agg_metric and split_name == "val":
+                    #             best_epoch, best_agg_metric = cur_epoch, agg_metrics
+                    #             if not self.evaluate_only:
+                    #                 self._save_checkpoint(cur_epoch, is_best=True)
+                            
+
                     if val_log is not None:
                         if is_main_process():
-                            assert (
-                                "agg_metrics" in val_log
-                            ), "No agg_metrics found in validation log."
-
-                            agg_metrics = val_log["agg_metrics"]
-                            if agg_metrics > best_agg_metric and split_name == "val":
-                                best_epoch, best_agg_metric = cur_epoch, agg_metrics
+                            if "loss" in val_log:
+                                current_val_loss = val_log["loss"]
+                                if current_val_loss < best_val_loss_so_far and split_name == "val":
+                                    best_epoch, best_val_loss_so_far = cur_epoch, current_val_loss
+                                    if not self.evaluate_only:
+                                        self._save_checkpoint(cur_epoch, is_best=True)
+                            else:
+                                # If no "loss" found, fallback to save checkpoint anyway
                                 if not self.evaluate_only:
                                     self._save_checkpoint(cur_epoch, is_best=True)
 
                             val_log.update({"best_epoch": best_epoch})
                             self.log_stats(val_log, split_name)
+
+
 
             else:
                 # if no validation split is provided, we just save the checkpoint at the end of each epoch.
@@ -478,6 +498,11 @@ class RunnerBaseW:
         if self.save_last and not self.evaluate_only:
             self._save_checkpoint(cur_epoch, is_best=False)
 
+        best_checkpoint_path = os.path.join(self.output_dir, "checkpoint_best.pth")
+        if not os.path.exists(best_checkpoint_path):
+            logging.info("No best checkpoint found. Saving last model as best.")
+            self._save_checkpoint(cur_epoch, is_best=True)
+
         # testing phase
         test_epoch = "best" if len(self.valid_splits) > 0 else cur_epoch
         self.evaluate(cur_epoch=test_epoch, skip_reload=self.evaluate_only)
@@ -485,6 +510,8 @@ class RunnerBaseW:
         total_time = time.time() - start_time
         total_time_str = str(datetime.timedelta(seconds=int(total_time)))
         logging.info("Training time {}".format(total_time_str))
+
+                    
 
     def evaluate(self, cur_epoch="best", skip_reload=False): # --------------------------------------------------------------------------------- 
         test_logs = dict()
@@ -499,7 +526,7 @@ class RunnerBaseW:
 
     def train_epoch(self, epoch):
         # train
-        print(">>> [DEBUG] Train loader object:", self.train_loader)
+        # print(">>> [DEBUG] Train loader object:", self.train_loader)
 
         self.model.train()
 
@@ -555,189 +582,6 @@ class RunnerBaseW:
             return model.module
         else:
             return model
-
-    # def create_loaders(
-    #     self,
-    #     datasets,
-    #     num_workers,
-    #     batch_sizes,
-    #     is_trains,
-    #     collate_fns,
-    #     dataset_ratios=None,
-    # ):
-        
-
-    #     """
-    #     Create dataloaders for training and validation.
-    #     """
-
-    #     def _create_loader(dataset, num_workers, bsz, is_train, collate_fn):
-    #         print(f"[LOADER DEBUG] _create_loader received dataset of type {type(dataset)} with length {len(dataset) if hasattr(dataset, '__len__') else 'unknown'}")
-
-    #         # create a single dataloader for each split
-    #         if isinstance(dataset, ChainDataset) or isinstance(
-    #             dataset, wds.DataPipeline
-    #         ):
-    #             print(f"[LOADER DEBUG] inside  if statement of _create_loader received dataset of type {type(dataset)} with length {len(dataset) if hasattr(dataset, '__len__') else 'unknown'}")
-    #             # wds.WebdDataset instance are chained together
-    #             # webdataset.DataPipeline has its own sampler and collate_fn
-    #             loader = iter(
-    #                 DataLoader(
-    #                     dataset,
-    #                     batch_size=bsz,
-    #                     num_workers=num_workers,
-    #                     pin_memory=True,
-    #                 )
-    #             )
-    #         else:
-    #             # map-style dataset are concatenated together
-    #             # setup distributed sampler
-    #             if self.use_distributed:
-    #                 sampler = DistributedSampler(
-    #                     dataset,
-    #                     shuffle=is_train,
-    #                     num_replicas=get_world_size(),
-    #                     rank=get_rank(),
-    #                 )
-    #                 if not self.use_dist_eval_sampler:
-    #                     # e.g. retrieval evaluation
-    #                     sampler = sampler if is_train else None
-    #             else:
-    #                 sampler = None
-
-    #             loader = DataLoader(
-    #                 dataset,
-    #                 batch_size=bsz,
-    #                 num_workers=num_workers,
-    #                 pin_memory=True,
-    #                 sampler=sampler,
-    #                 shuffle=sampler is None and is_train,
-    #                 collate_fn=collate_fn,
-    #                 drop_last=True if is_train else False,
-    #             )
-    #             loader = PrefetchLoader(loader)
-
-    #             if is_train:
-    #                 loader = IterLoader(loader, use_distributed=self.use_distributed)
-
-    #         return loader
-    #     # create dataloaders
-    #     loaders = []
-
-    #     for dataset, bsz, is_train, collate_fn in zip(
-    #         datasets, batch_sizes, is_trains, collate_fns
-    #     ):
-            
-    #         print(f"[DEBUG] Creating loader for dataset: {dataset}, type: {type(dataset)}")
-    #         if isinstance(dataset, list) or isinstance(dataset, tuple):
-    #             loader = MultiIterLoader(
-    #                 loaders=[
-    #                     _create_loader(d, num_workers, bsz, is_train, collate_fn[i])
-    #                     for i, d in enumerate(dataset)
-    #                 ],
-    #                 ratios=dataset_ratios,
-    #             )
-    #         else:
-    #             loader = _create_loader(dataset, num_workers, bsz, is_train, collate_fn)
-
-    #         loaders.append(loader)
-
-    #     return loaders
-
-
-    # def create_loaders(
-    #     self,
-    #     datasets,
-    #     num_workers,
-    #     batch_sizes,
-    #     is_trains,
-    #     collate_fns,
-    #     dataset_ratios=None,
-    # ):
-    #     """
-    #     Create dataloaders for training and validation.
-    #     """
-
-    #     def _create_loader(dataset, num_workers, bsz, is_train, collate_fn):
-    #         print("\n[LOADER DEBUG] Starting _create_loader")
-    #         print(f"  • Dataset type: {type(dataset)}")
-    #         print(f"  • Dataset length: {len(dataset) if hasattr(dataset, '__len__') else 'unknown'}")
-    #         print(f"  • Batch size: {bsz}")
-    #         print(f"  • Is training: {is_train}")
-    #         print(f"  • Collate function: {collate_fn}")
-
-    #         if isinstance(dataset, ChainDataset) or isinstance(dataset, wds.DataPipeline):
-    #             print("[LOADER DEBUG] Detected streaming-style dataset (ChainDataset or wds.DataPipeline)")
-    #             loader = iter(
-    #                 DataLoader(
-    #                     dataset,
-    #                     batch_size=bsz,
-    #                     num_workers=num_workers,
-    #                     pin_memory=True,
-    #                 )
-    #             )
-    #             print("[LOADER DEBUG] Created iterable DataLoader for streaming-style dataset")
-    #         else:
-    #             if self.use_distributed:
-    #                 sampler = DistributedSampler(
-    #                     dataset,
-    #                     shuffle=is_train,
-    #                     num_replicas=get_world_size(),
-    #                     rank=get_rank(),
-    #                 )
-    #                 if not self.use_dist_eval_sampler:
-    #                     sampler = sampler if is_train else None
-    #             else:
-    #                 sampler = None
-
-    #             loader = DataLoader(
-    #                 dataset,
-    #                 batch_size=bsz,
-    #                 num_workers=num_workers,
-    #                 pin_memory=True,
-    #                 sampler=sampler,
-    #                 shuffle=sampler is None and is_train,
-    #                 collate_fn=collate_fn,
-    #                 drop_last=True if is_train else False,
-    #             )
-    #             print("[LOADER DEBUG] Created standard DataLoader")
-    #             loader = PrefetchLoader(loader)
-    #             print(f"[LOADER DEBUG] Wrapped DataLoader in PrefetchLoader: {type(loader)}")
-
-    #             if is_train:
-    #                 loader = IterLoader(loader, use_distributed=self.use_distributed)
-    #                 print(f"[LOADER DEBUG] Wrapped in IterLoader: {type(loader)}")
-
-    #         print("[LOADER DEBUG] Finished creating loader\n")
-    #         return loader
-
-    #     # create dataloaders
-    #     loaders = []
-
-    #     for dataset, bsz, is_train, collate_fn in zip(datasets, batch_sizes, is_trains, collate_fns):
-    #         print("\n[DEBUG] Creating loader...")
-    #         print(f"  • Input dataset: {dataset}")
-    #         print(f"  • Dataset type: {type(dataset)}")
-    #         print(f"  • Is training: {is_train}")
-
-    #         if isinstance(dataset, list) or isinstance(dataset, tuple):
-    #             loader = MultiIterLoader(
-    #                 loaders=[
-    #                     _create_loader(d, num_workers, bsz, is_train, collate_fn[i])
-    #                     for i, d in enumerate(dataset)
-    #                 ],
-    #                 ratios=dataset_ratios,
-    #             )
-    #             print(f"[DEBUG] Created MultiIterLoader: {type(loader)}")
-    #         else:
-    #             loader = _create_loader(dataset, num_workers, bsz, is_train, collate_fn)
-    #             print(f"[DEBUG] Created loader: {type(loader)}")
-
-    #         print(f"[DEBUG] Final loader object: {loader}")
-    #         loaders.append(loader)
-
-    #     print("\n[DEBUG] Returning final loaders list")
-    #     return loaders
 
 
     def create_loaders(
@@ -823,13 +667,13 @@ class RunnerBaseW:
         loaders = []
 
         for dataset, bsz, is_train, collate_fn in zip(datasets, batch_sizes, is_trains, collate_fns):
-            print("\n[DEBUG] Creating loader...")
+            # print("\n[DEBUG] Creating loader...")
             print(f"  • Raw dataset input: {dataset}")
             print(f"  • Dataset type: {type(dataset)}")
             print(f"  • Is training split: {is_train}")
 
             if isinstance(dataset, list) or isinstance(dataset, tuple):
-                print(f"[DEBUG] Creating MultiIterLoader from {len(dataset)} sub-datasets...")
+                # print(f"[DEBUG] Creating MultiIterLoader from {len(dataset)} sub-datasets...")
                 loader = MultiIterLoader(
                     loaders=[
                         _create_loader(d, num_workers, bsz, is_train, collate_fn[i])
@@ -837,15 +681,15 @@ class RunnerBaseW:
                     ],
                     ratios=dataset_ratios,
                 )
-                print(f"[DEBUG] Created MultiIterLoader: {loader}")
+                # print(f"[DEBUG] Created MultiIterLoader: {loader}")
             else:
                 loader = _create_loader(dataset, num_workers, bsz, is_train, collate_fn)
-                print(f"[DEBUG] Created single loader: {loader}")
+                # print(f"[DEBUG] Created single loader: {loader}")
 
-            print(f"[DEBUG] Final loader instance: {type(loader)}\n")
+            # print(f"[DEBUG] Final loader instance: {type(loader)}\n")
             loaders.append(loader)
 
-        print("[DEBUG] Returning all loaders")
+        # print("[DEBUG] Returning all loaders")
         return loaders
 
 

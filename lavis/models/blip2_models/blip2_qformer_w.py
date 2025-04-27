@@ -110,11 +110,11 @@ class Blip2Qformer(Blip2Base):
 
 
     def forward(self, samples):
-        print("Samples keys:", samples.keys())
+        # print("Samples keys:", samples.keys())
         image = samples["image"]
         lidar = samples["lidar"]
-        print("Image shape:", image.shape)
-        print("LiDAR shape:", lidar.shape)
+        # print("Image shape:", image.shape)
+        # print("LiDAR shape:", lidar.shape)
         
         bs = image.size(0)
         print("bs = image.size(0)", bs)
@@ -130,7 +130,7 @@ class Blip2Qformer(Blip2Base):
         rgb_embeds = self.ln_vision(self.visual_encoder(image))
         rgb_atts = torch.ones(rgb_embeds.size()[:-1], dtype=torch.long).to(image.device)
         query_tokens = self.query_tokens.expand(bs, -1, -1)
-        print("shape of query_tokens", query_tokens.shape)
+        # print("shape of query_tokens", query_tokens.shape)
 
         rgb_query_output = self.Qformer.bert(
             query_embeds=query_tokens,
@@ -145,7 +145,7 @@ class Blip2Qformer(Blip2Base):
         lidar_atts = torch.ones(lidar_embeds.size()[:-1], dtype=torch.long).to(lidar.device)
         query_tokens_lidar = self.query_tokens_lidar.expand(bs, -1, -1)
         # query_tokens_lidar = self.query_tokens_lidar.repeat(bs, -1, -1)
-        print("shape of query_tokens_lidar", query_tokens_lidar.shape)
+        # print("shape of query_tokens_lidar", query_tokens_lidar.shape)
         
         lidar_query_output = self.Qformer_lidar.bert(
             query_embeds=query_tokens_lidar,
@@ -154,14 +154,14 @@ class Blip2Qformer(Blip2Base):
             return_dict=True,
         )
         lidar_feats = F.normalize(self.lidar_proj(lidar_query_output.last_hidden_state), dim=-1)
-        print("shape of rgb_feats", rgb_feats.shape)
-        print("shape of lidar_feats", lidar_feats.shape)
+        # print("shape of rgb_feats", rgb_feats.shape)
+        # print("shape of lidar_feats", lidar_feats.shape)
         # === Contrastive Loss ===
         rgb_feats_all = concat_all_gather(rgb_feats)
         lidar_feats_all = concat_all_gather(lidar_feats)
 
-        print("shape of rgb_feats_all", rgb_feats_all.shape)
-        print("shape of lidar_feats_all", lidar_feats_all.shape)
+        # print("shape of rgb_feats_all", rgb_feats_all.shape)
+        # print("shape of lidar_feats_all", lidar_feats_all.shape)
 
 
         B, N, D = rgb_feats_all.shape  # [B, N, D]
@@ -184,12 +184,12 @@ class Blip2Qformer(Blip2Base):
         targets = torch.arange(B).to(sim_rgb2lidar.device)  # [0, 1, ..., B-1]
 
 
-        print("targets = ", targets)
-        print("sim_rgb2lidar = ", sim_rgb2lidar.shape)
-        print("sim_rgb2lidar value = ", sim_rgb2lidar)
+        # print("targets = ", targets)
+        # print("sim_rgb2lidar = ", sim_rgb2lidar.shape)
+        # print("sim_rgb2lidar value = ", sim_rgb2lidar)
 
-        print("sim_lidar2rgb = ", sim_lidar2rgb.shape)
-        print("sim_lidar2rgb value = ", sim_lidar2rgb)
+        # print("sim_lidar2rgb = ", sim_lidar2rgb.shape)
+        # print("sim_lidar2rgb value = ", sim_lidar2rgb)
 
         loss_contrastive = (
             F.cross_entropy(sim_rgb2lidar, targets, label_smoothing=0.1) +

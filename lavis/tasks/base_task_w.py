@@ -1,6 +1,6 @@
 import logging
 import os
-
+from torch import autocast
 import torch
 import torch.distributed as dist
 from lavis.common.dist_utils import (
@@ -40,21 +40,43 @@ class BaseTask:
             dataset = builder.build_datasets()
             datasets[name] = dataset
 
-        print(">>> [DEBUG] Built datasets keys:", datasets.keys())
+        # print(">>> [DEBUG] Built datasets keys:", datasets.keys())
         return datasets
 
     def train_step(self, model, samples):
-        print("[TRACE] train_step in base_task.py")
-        print("  sample keys:", samples.keys())
-        print("  image shape:", samples.get("image", None).shape if "image" in samples else "missing")
-        print("  lidar shape:", samples.get("lidar", None).shape if "lidar" in samples else "missing")
+        # print("[TRACE] train_step in base_task.py")
+        # print("  sample keys:", samples.keys())
+        # print("  image shape:", samples.get("image", None).shape if "image" in samples else "missing")
+        # print("  lidar shape:", samples.get("lidar", None).shape if "lidar" in samples else "missing")
         output = model(samples)
-        print("[TRACE] train_step in base_task.py after forward pass")
+        # print("[TRACE] train_step in base_task.py after forward pass")
         loss_dict = {k: v for k, v in output.items() if "loss" in k}
         return output["loss"], loss_dict
 
+    # def valid_step(self, model, samples):
+    #     raise NotImplementedError
+
+
+
     def valid_step(self, model, samples):
-        raise NotImplementedError
+        model.eval()
+        samples = prepare_sample(samples, cuda_enabled=True)
+
+        use_amp = True  # or however you track AMP usage (usually from config)
+
+        with torch.no_grad():
+            with autocast("cuda", enabled=use_amp):
+                output = model(samples)
+
+        if "loss" in output:
+            loss = output["loss"].item()
+        else:
+            loss = None
+
+        print(f"[VALIDATION] Batch validation loss: {loss}")
+
+        return {"loss": loss, "output": output}
+
 
     def before_evaluation(self, model, dataset, **kwargs):
         model.before_evaluation(dataset=dataset, task_type=type(self))
@@ -90,7 +112,7 @@ class BaseTask:
         log_freq=50,
         accum_grad_iters=1,
     ):
-        return self._train_inner_loop(
+        stats = self._train_inner_loop(
             epoch=epoch,
             iters_per_epoch=len(data_loader),
             model=model,
@@ -102,6 +124,13 @@ class BaseTask:
             cuda_enabled=cuda_enabled,
             accum_grad_iters=accum_grad_iters,
         )
+        # Add epoch number to log
+        # stats["epoch"] = epoch
+        stats = {f"{k}": v for k, v in stats.items()}
+        stats["epoch"] = epoch
+        return stats
+    
+
 
     def _train_inner_loop(
         self,
@@ -131,9 +160,7 @@ class BaseTask:
         inner_epoch = epoch if start_iters is None else start_iters // iters_per_epoch
         if start_iters is not None:
             header += f"; inner epoch [{inner_epoch}]"
-        # iters_per_epoch = 5 #---------------------- remove this later ----------------------
-        # print(iters_per_epoch, "---------aaaaa--------------------------------------------------------------------------------")
-        # print(log_freq, "--------------aaaaa---------------------------------------------------------------------------")
+        
         for i in metric_logger.log_every(range(iters_per_epoch), log_freq, header):
             if i >= iters_per_epoch:
                 break
@@ -156,6 +183,8 @@ class BaseTask:
             )
 
             lr_scheduler.step(cur_epoch=inner_epoch, cur_step=i)
+            print(f"[DEBUG] Step {i}, LR: {optimizer.param_groups[0]['lr']:.8f} -----------------------")
+
 
             with torch.cuda.amp.autocast(enabled=use_amp):
                 loss, loss_dict = self.train_step(model=model, samples=samples)
@@ -180,7 +209,8 @@ class BaseTask:
         metric_logger.synchronize_between_processes()
         logging.info("Averaged stats: " + str(metric_logger.global_avg()))
         return {
-            k: "{:.3f}".format(meter.global_avg)
+            # k: "{:.3f}".format(meter.global_avg)
+            k: ("{:.8f}".format(meter.global_avg) if k == "lr" else "{:.3f}".format(meter.global_avg))
             for k, meter in metric_logger.meters.items()
         }
 

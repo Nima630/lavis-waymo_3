@@ -135,7 +135,7 @@ class PrefetchLoader_(object):
             if is_tuple:
                 task, batch = batch
 
-            print(f"[PrefetchLoader DEBUG] Yielding batch keys: {list(batch.keys()) if isinstance(batch, dict) else type(batch)}")
+            # print(f"[PrefetchLoader DEBUG] Yielding batch keys: {list(batch.keys()) if isinstance(batch, dict) else type(batch)}")
             
             if is_tuple:
                 yield task, batch
@@ -149,10 +149,10 @@ class PrefetchLoader_(object):
     def preload(self, it):
         try:
             self.batch = next(it)
-            print(f"[PrefetchLoader DEBUG] Preloaded batch keys: {list(self.batch.keys()) if isinstance(self.batch, dict) else type(self.batch)}")
+            # print(f"[PrefetchLoader DEBUG] Preloaded batch keys: {list(self.batch.keys()) if isinstance(self.batch, dict) else type(self.batch)}")
         except StopIteration:
             self.batch = None
-            print("[PrefetchLoader DEBUG] No more data to preload (StopIteration).")
+            # print("[PrefetchLoader DEBUG] No more data to preload (StopIteration).")
             return
 
         with torch.cuda.stream(self.stream):

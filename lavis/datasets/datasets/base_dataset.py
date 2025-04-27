@@ -98,7 +98,7 @@ class BaseDataset(Dataset):
         # Load + transform image
         # image = self.vis_processor(image_path)
 
-        print(f"[DEBUG __getitem__] index={index}, image_path={image_path}")
+        # print(f"[DEBUG __getitem__] index={index}, image_path={image_path}")
 
         try:
             image = Image.open(image_path).convert("RGB")

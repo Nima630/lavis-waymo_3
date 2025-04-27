@@ -18,17 +18,20 @@ from omegaconf import OmegaConf, ListConfig
 import matplotlib.pyplot as plt
 
 class WaymoCameraDataset:
-    def __init__(self, vis_processor, camera_root):
+    def __init__(self, vis_processor, camera_files):
         self.vis_processor = vis_processor
-        print("[CHECK] Loading camera dataset from:", camera_root)
+        self.camera_files = camera_files
+        # print("[CHECK] Loading camera dataset from:", camera_root)
 
-        self.camera_files = sorted(glob.glob(os.path.join(camera_root, "*.parquet")))
-        if not self.camera_files:
-            raise FileNotFoundError(f"No parquet files found in {camera_root}")
-
+        # self.camera_files = sorted(glob.glob(os.path.join(camera_root, "*.parquet")))
+        # if not self.camera_files:
+        #     raise FileNotFoundError(f"No parquet files found in {camera_root}")
+        
     def __getitem__(self, idx):
-        print(f"[DEBUG] {self.__class__.__name__} __getitem__({idx})")
+        # print(f"[DEBUG] {self.__class__.__name__} __getitem__({idx})")
         parquet_file = self.camera_files[idx]
+        # print(f"Loading camera file: {parquet_file}")
+
         try:
             df = pd.read_parquet(parquet_file)
             image_bytes = df['[CameraImageComponent].image'].iloc[0]
@@ -58,16 +61,18 @@ class WaymoCameraDataset:
 
 
 class WaymoLidarDataset:
-    def __init__(self, vis_processor, lidar_root):
+    def __init__(self, vis_processor, lidar_files):
         self.vis_processor = vis_processor
-        self.lidar_files = sorted(glob.glob(os.path.join(lidar_root, "*.parquet")))
-        if not self.lidar_files:
-            raise FileNotFoundError(f"No parquet files found in {lidar_root}")
-
+        # self.lidar_files = sorted(glob.glob(os.path.join(lidar_root, "*.parquet")))
+        # if not self.lidar_files:
+        #     raise FileNotFoundError(f"No parquet files found in {lidar_root}")
+        self.lidar_files = lidar_files
     def __getitem__(self, idx):
-        print(f"[DEBUG] {self.__class__.__name__} __getitem__({idx})")
+        # print(f"[DEBUG] {self.__class__.__name__} __getitem__({idx})")
         parquet_file = self.lidar_files[idx]
+        # print(f"Loading lidar file: {parquet_file}")
         try:
+            
             df = pd.read_parquet(parquet_file)
             row = df.iloc[0]
             raw_values = row['[LiDARComponent].range_image_return1.values']
@@ -108,14 +113,14 @@ class WrappedConcatDataset(ConcatDataset):
         self.lidar_dataset = datasets[1]
 
     def __getitem__(self, idx):
-        print(f"[DEBUG] WrappedConcatDataset __getitem__({idx})")
+        # print(f"[DEBUG] WrappedConcatDataset __getitem__({idx})")
         try:
             if idx >= len(self.camera_dataset) or idx >= len(self.lidar_dataset):
                 return None
             cam_sample = self.camera_dataset[idx]
             lidar_sample = self.lidar_dataset[idx]
-            print(f"[DEBUG] cam_sample keys: {cam_sample.keys() if cam_sample else 'None'}")
-            print(f"[DEBUG] lidar_sample keys: {lidar_sample.keys() if lidar_sample else 'None'}")
+            # print(f"[DEBUG] cam_sample keys: {cam_sample.keys() if cam_sample else 'None'}")
+            # print(f"[DEBUG] lidar_sample keys: {lidar_sample.keys() if lidar_sample else 'None'}")
             if cam_sample is None or lidar_sample is None:
                 return None
             return {**cam_sample, **lidar_sample, "label": 1}  # dummy label
@@ -127,7 +132,7 @@ class WrappedConcatDataset(ConcatDataset):
         return min(len(self.camera_dataset), len(self.lidar_dataset))
 
     def collater(self, samples):
-        print(f"[DEBUG] collater received {len(samples)} samples")
+        # print(f"[DEBUG] collater received {len(samples)} samples")
         
         for i, s in enumerate(samples):
             print(f"  sample {i}: keys = {s.keys() if s else 'None'}")
@@ -140,30 +145,120 @@ class WrappedConcatDataset(ConcatDataset):
         batch = self.camera_dataset.collater(samples)
         batch.update({"lidar": torch.stack([s["lidar"] for s in samples])})
         batch["label"] = torch.tensor([s["label"] for s in samples])
-        print(f"[DEBUG] Final collated batch keys+++++++++++++++++++: {batch.keys()}")
+        # print(f"[DEBUG] Final collated batch keys+++++++++++++++++++: {batch.keys()}")
         return batch
 
 
 class WaymoDatasetBuilder:
     def __init__(self, cfg):
         self.config = cfg
-        self.data_type = list(cfg.data_type)
+        # print("---------------------------- self.config",self.config)
+        # cfg.datasets_cfg["waymo"]
+        self.data_type = list(cfg.datasets_cfg["waymo"].data_type)
+
+    # def build_datasets(self):
+    #     build_info = self.config.build_info
+    #     vis_processor = Blip2ImageTrainProcessor.from_config(self.config.vis_processor.train)
+
+    #     # camera_dataset = WaymoCameraDataset(vis_processor, build_info["camera"].storage)
+    #     # lidar_dataset = WaymoLidarDataset(vis_processor, build_info["lidar"].storage)
+    #     camera_root = build_info["camera"].storage
+    #     lidar_root = build_info["lidar"].storage
+
+    #     matched_camera_files, matched_lidar_files = self.get_matched_files(camera_root, lidar_root)
+
+    #     camera_dataset = WaymoCameraDataset(vis_processor, matched_camera_files)
+    #     lidar_dataset = WaymoLidarDataset(vis_processor, matched_lidar_files)
+
+
+    #     return {
+    #         "train": WrappedConcatDataset([camera_dataset, lidar_dataset])
+    # }
+    
+    
+    # def build_datasets(self):
+    #     build_info = self.config.build_info
+    #     vis_processor = Blip2ImageTrainProcessor.from_config(self.config.vis_processor.train)
+
+    #     datasets = {}
+
+    #     for split in ["train", "val", "test"]:
+    #         if split in self.config.run.train_splits + self.config.run.valid_splits + self.config.run.test_splits:
+    #             camera_root = build_info["camera"][split].storage
+    #             lidar_root = build_info["lidar"][split].storage
+
+    #             matched_camera_files, matched_lidar_files = self.get_matched_files(camera_root, lidar_root)
+
+    #             camera_dataset = WaymoCameraDataset(vis_processor, matched_camera_files)
+    #             lidar_dataset = WaymoLidarDataset(vis_processor, matched_lidar_files)
+
+    #             datasets[split] = WrappedConcatDataset([camera_dataset, lidar_dataset])
+
+    #     return datasets
+
 
     def build_datasets(self):
-        build_info = self.config.build_info
-        vis_processor = Blip2ImageTrainProcessor.from_config(self.config.vis_processor.train)
+        build_info = self.config.datasets_cfg["waymo"].build_info
+        # print("[DEBUG] build_info ", build_info)
 
-        camera_dataset = WaymoCameraDataset(vis_processor, build_info["camera"].storage)
-        lidar_dataset = WaymoLidarDataset(vis_processor, build_info["lidar"].storage)
+        # print("[DEBUG] build_info keys:", build_info.keys())
+        vis_processor = Blip2ImageTrainProcessor.from_config(self.config.datasets_cfg["waymo"].vis_processor.train)
 
-        # return {
-        #     "waymo": {
-        #         "train": WrappedConcatDataset([camera_dataset, lidar_dataset])
-        #     }
-        # }
-        return {
-            "train": WrappedConcatDataset([camera_dataset, lidar_dataset])
-    }
+        datasets = {}
+
+        # Let's print what's inside self.config.run
+        # print("[DEBUG] config.run keys:", self.config.run_cfg.keys())
+
+        for split in ["train", "val", "test"]:
+            # Print current split
+            # print(f"[DEBUG] Processing split: {split}")
+
+            # Print which splits we have
+            # print(f"[DEBUG] train_splits: {self.config.run_cfg.train_splits}")
+            # print(f"[DEBUG] valid_splits: {self.config.run_cfg.valid_splits}")
+            # print(f"[DEBUG] test_splits: {self.config.run_cfg.test_splits}")
+
+            if split in self.config.run_cfg.train_splits + self.config.run_cfg.valid_splits + self.config.run_cfg.test_splits:
+                # print(f"[DEBUG] Split {split} is in config. Proceeding...")
+
+                # Debugging build_info structure
+                # print(f"[DEBUG] build_info['camera'] keys: {build_info['camera'].keys()}")
+                # print(f"[DEBUG] build_info['lidar'] keys: {build_info['lidar'].keys()}")
+
+                camera_root = build_info["camera"][split].storage
+                lidar_root = build_info["lidar"][split].storage
+
+                # print(f"[DEBUG] Camera root for {split}: {camera_root}")
+                # print(f"[DEBUG] LiDAR root for {split}: {lidar_root}")
+
+                matched_camera_files, matched_lidar_files = self.get_matched_files(camera_root, lidar_root)
+
+                camera_dataset = WaymoCameraDataset(vis_processor, matched_camera_files)
+                lidar_dataset = WaymoLidarDataset(vis_processor, matched_lidar_files)
+
+                datasets[split] = WrappedConcatDataset([camera_dataset, lidar_dataset])
+
+        return datasets
+
+
+    def get_matched_files(self, camera_root, lidar_root):
+        camera_files = {
+            os.path.splitext(os.path.basename(f))[0]: f
+            for f in glob.glob(os.path.join(camera_root, "*.parquet"))
+        }
+        lidar_files = {
+            os.path.splitext(os.path.basename(f))[0]: f
+            for f in glob.glob(os.path.join(lidar_root, "*.parquet"))
+        }
+
+        # Get intersection of file keys
+        # matched_keys = sorted(set(camera_files) & set(lidar_files))
+        matched_keys = sorted(set(camera_files) & set(lidar_files))[:300]
+        matched_camera_files = [camera_files[k] for k in matched_keys]
+        matched_lidar_files = [lidar_files[k] for k in matched_keys]
+
+        return matched_camera_files, matched_lidar_files
+
 
 
 if __name__ == "__main__":
@@ -219,6 +314,8 @@ if __name__ == "__main__":
             for ax in axs:
                 ax.axis('off')
             plt.show()
+
+
 
 
 
